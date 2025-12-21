@@ -1,0 +1,13 @@
+# PDF2PNG 转换工具依赖
+
+# 核心依赖 - PDF 处理
+PyMuPDF>=1.23.0
+
+# GUI 依赖 - 现代化 UI 框架
+ttkbootstrap>=1.10.1
+
+# 可选依赖 - PNG 优化
+Pillow>=9.0.0
+
+# 可选依赖 - GUI 拖放功能
+tkinterdnd2>=0.4.0
