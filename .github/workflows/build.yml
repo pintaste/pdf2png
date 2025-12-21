@@ -55,6 +55,21 @@ jobs:
       - name: Build with PyInstaller
         run: pyinstaller --clean ${{ matrix.spec }}
 
+      - name: Clean macOS build
+        if: matrix.os == 'macos-latest'
+        run: |
+          # Remove unnecessary Qt frameworks
+          rm -rf dist/PDF2PNG.app/Contents/Frameworks/QtPdf* 2>/dev/null || true
+          rm -rf dist/PDF2PNG.app/Contents/Frameworks/QtNetwork* 2>/dev/null || true
+          rm -rf dist/PDF2PNG.app/Contents/Frameworks/QtDBus* 2>/dev/null || true
+          rm -rf dist/PDF2PNG.app/Contents/Frameworks/QtSvg* 2>/dev/null || true
+          rm -rf dist/PDF2PNG.app/Contents/Frameworks/QtOpenGL* 2>/dev/null || true
+          # Remove Qt translations except Chinese and English
+          find dist/PDF2PNG.app -name "qt_*.qm" ! -name "qt_zh*.qm" ! -name "qt_en*.qm" -delete 2>/dev/null || true
+          find dist/PDF2PNG.app -name "qtbase_*.qm" ! -name "qtbase_zh*.qm" ! -name "qtbase_en*.qm" -delete 2>/dev/null || true
+          # Show final size
+          du -sh dist/PDF2PNG.app
+
       - name: Package (Unix)
         if: matrix.os != 'windows-latest'
         run: ${{ matrix.package_cmd }}
