@@ -16,16 +16,19 @@ jobs:
         include:
           - os: macos-latest
             name: macOS
+            spec: build-optimized.spec
             artifact: PDF2PNG-macOS
-            extension: .app
+            package_cmd: cd dist && zip -r ../PDF2PNG-macOS.zip PDF2PNG.app
           - os: ubuntu-latest
             name: Linux
+            spec: build-linux.spec
             artifact: PDF2PNG-Linux
-            extension: ""
+            package_cmd: cd dist && tar -czvf ../PDF2PNG-Linux.tar.gz PDF2PNG
           - os: windows-latest
             name: Windows
+            spec: build-windows.spec
             artifact: PDF2PNG-Windows
-            extension: .exe
+            package_cmd: Compress-Archive -Path dist/PDF2PNG.exe -DestinationPath PDF2PNG-Windows.zip
 
     runs-on: ${{ matrix.os }}
 
@@ -43,26 +46,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller PyMuPDF PyQt6
 
-      - name: Build with PyInstaller (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          pyinstaller --clean build-optimized.spec
-          cd dist && zip -r ../PDF2PNG-macOS.zip PDF2PNG.app
-
-      - name: Build with PyInstaller (Linux)
+      - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
-          # Install Qt dependencies
           sudo apt-get update
-          sudo apt-get install -y libxcb-xinerama0 libxcb-cursor0
-          pyinstaller --onefile --windowed --name PDF2PNG pdf2png-gui.py
-          cd dist && tar -czvf ../PDF2PNG-Linux.tar.gz PDF2PNG
+          sudo apt-get install -y libxcb-xinerama0 libxcb-cursor0 libegl1
 
-      - name: Build with PyInstaller (Windows)
+      - name: Build with PyInstaller
+        run: pyinstaller --clean ${{ matrix.spec }}
+
+      - name: Package (Unix)
+        if: matrix.os != 'windows-latest'
+        run: ${{ matrix.package_cmd }}
+
+      - name: Package (Windows)
         if: matrix.os == 'windows-latest'
-        run: |
-          pyinstaller --onefile --windowed --name PDF2PNG --icon=NONE pdf2png-gui.py
-          Compress-Archive -Path dist/PDF2PNG.exe -DestinationPath PDF2PNG-Windows.zip
+        shell: pwsh
+        run: ${{ matrix.package_cmd }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -81,6 +81,9 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
+      - name: List files
+        run: find . -type f -name "PDF2PNG-*"
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -89,5 +92,3 @@ jobs:
             PDF2PNG-Linux/PDF2PNG-Linux.tar.gz
             PDF2PNG-Windows/PDF2PNG-Windows.zip
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
