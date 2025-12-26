@@ -1,0 +1,80 @@
+/* Main View */
+"app.title" = "PDF → PNG";
+"app.subtitle" = "HD PDF to PNG Converter";
+"app.dropHint1" = "Drop PDF files here";
+"app.dropHint2" = "or click the yellow area to select";
+
+/* Title Bar */
+"titleBar.title" = "PDF → PNG";
+
+/* Settings */
+"settings.title" = "Settings";
+"settings.qualityFirst" = "Quality";
+"settings.sizeLimit" = "Size Limit";
+"settings.dpi" = "DPI";
+"settings.mb" = "MB";
+
+/* File List */
+"fileList.title" = "File List";
+"fileList.summary" = "%d files · %@";
+"fileList.file" = "file";
+"fileList.files" = "files";
+
+/* Buttons */
+"button.add" = "Add";
+"button.clear" = "Clear";
+"button.cancel" = "Cancel";
+"button.startConvert" = "Convert";
+"button.restart" = "Restart";
+
+/* Menu */
+"menu.openPDF" = "Open PDF...";
+"menu.clearList" = "Clear List";
+"menu.startConvert" = "Start Convert";
+"menu.cancelConvert" = "Cancel Convert";
+
+/* Status */
+"status.pending" = "Pending";
+"status.converting" = "Converting...";
+"status.completed" = "Completed";
+"status.failed" = "Failed";
+"status.cancelled" = "Cancelled";
+"status.page" = "Page %d/%d";
+
+/* Errors */
+"error.title" = "Error";
+"error.ok" = "OK";
+"error.unknown" = "Unknown error";
+
+/* Overwrite Dialog */
+"overwrite.title" = "Files Already Exist";
+"overwrite.cancel" = "Cancel";
+"overwrite.confirm" = "Overwrite";
+"overwrite.message" = "The following files will be overwritten:\n%@";
+
+/* Output Selection */
+"output.selectFolder" = "Select";
+"output.message" = "Choose where to save PNG files";
+
+/* Theme */
+"theme.switchToLight" = "Switch to Light Mode";
+"theme.switchToDark" = "Switch to Dark Mode";
+"theme.expand" = "Expand Settings";
+"theme.collapse" = "Collapse Settings";
+
+/* Conversion Result */
+"result.pages" = "%d pages";
+"result.dpi" = "%d DPI";
+"result.size" = "%.1f MB";
+"result.time" = "%.1fs";
+
+/* Conversion Errors */
+"error.fileNotFound" = "File not found: %@";
+"error.invalidPDF" = "Invalid PDF file";
+"error.renderFailed" = "Render failed: %@";
+"error.saveFailed" = "Save failed: %@";
+"error.conversionCancelled" = "Conversion cancelled";
+"error.cannotGetPage" = "Cannot get page %d";
+"error.cannotCreateContext" = "Cannot create graphics context";
+"error.cannotGenerateImage" = "Cannot generate image";
+"error.cannotGeneratePNG" = "Cannot generate PNG data";

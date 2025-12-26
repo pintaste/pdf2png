@@ -16,12 +16,12 @@ struct PDF2PNGApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandGroup(after: .newItem) {
-                Button("打开 PDF...") {
+                Button(String(localized: "menu.openPDF")) {
                     appState.showFilePicker = true
                 }
                 .keyboardShortcut("o", modifiers: .command)
 
-                Button("清空列表") {
+                Button(String(localized: "menu.clearList")) {
                     if !appState.isConverting {
                         appState.clearFiles()
                         appState.tasks.removeAll()
@@ -32,7 +32,7 @@ struct PDF2PNGApp: App {
 
                 Divider()
 
-                Button("开始转换") {
+                Button(String(localized: "menu.startConvert")) {
                     if !appState.pendingFiles.isEmpty && !appState.isConverting {
                         appState.selectOutputAndConvert()
                     }
@@ -40,7 +40,7 @@ struct PDF2PNGApp: App {
                 .keyboardShortcut(.return, modifiers: .command)
                 .disabled(appState.pendingFiles.isEmpty || appState.isConverting)
 
-                Button("取消转换") {
+                Button(String(localized: "menu.cancelConvert")) {
                     if appState.isConverting {
                         appState.cancelConversion()
                     }

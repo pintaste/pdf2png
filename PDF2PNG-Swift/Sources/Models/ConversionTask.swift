@@ -15,7 +15,7 @@ struct ConversionTask: Identifiable {
     var fileSizeFormatted: String {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
               let size = attrs[.size] as? Int64 else {
-            return "未知"
+            return String(localized: "error.unknown")
         }
         return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
     }
@@ -54,19 +54,23 @@ enum TaskStatus {
     var description: String {
         switch self {
         case .pending:
-            return "等待中"
+            return String(localized: "status.pending")
         case .converting(_, let currentPage, let totalPages):
             if totalPages > 1 {
-                return "转换中 \(currentPage)/\(totalPages) 页"
+                return String(localized: "status.page")
+                    .replacingOccurrences(of: "%d/%d", with: "\(currentPage)/\(totalPages)")
             } else {
-                return "转换中..."
+                return String(localized: "status.converting")
             }
         case .completed(let result):
             let size = ByteCountFormatter.string(fromByteCount: Int64(result.totalSizeBytes), countStyle: .file)
             let timeStr = formatTime(result.renderTimeMs)
-            return "完成 (\(size), \(result.actualDPI)DPI, \(timeStr))"
+            return "\(String(localized: "status.completed")) (\(size), \(result.actualDPI)DPI, \(timeStr))"
         case .failed(let error):
-            return "失败: \(error)"
+            if error == "已取消" || error == "Cancelled" {
+                return String(localized: "status.cancelled")
+            }
+            return "\(String(localized: "status.failed")): \(error)"
         }
     }
 

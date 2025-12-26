@@ -1,0 +1,80 @@
+/* Main View */
+"app.title" = "PDF → PNG";
+"app.subtitle" = "高清 PDF 转 PNG 工具";
+"app.dropHint1" = "将 PDF 文件拖放到这里";
+"app.dropHint2" = "或点击黄色区域选择文件";
+
+/* Title Bar */
+"titleBar.title" = "PDF → PNG";
+
+/* Settings */
+"settings.title" = "设置";
+"settings.qualityFirst" = "质量优先";
+"settings.sizeLimit" = "大小限制";
+"settings.dpi" = "DPI";
+"settings.mb" = "MB";
+
+/* File List */
+"fileList.title" = "文件列表";
+"fileList.summary" = "%d 个文件 · %@";
+"fileList.file" = "个文件";
+"fileList.files" = "个文件";
+
+/* Buttons */
+"button.add" = "添加";
+"button.clear" = "清空";
+"button.cancel" = "取消";
+"button.startConvert" = "开始转换";
+"button.restart" = "重新开始";
+
+/* Menu */
+"menu.openPDF" = "打开 PDF...";
+"menu.clearList" = "清空列表";
+"menu.startConvert" = "开始转换";
+"menu.cancelConvert" = "取消转换";
+
+/* Status */
+"status.pending" = "等待中";
+"status.converting" = "转换中...";
+"status.completed" = "已完成";
+"status.failed" = "失败";
+"status.cancelled" = "已取消";
+"status.page" = "第 %d/%d 页";
+
+/* Errors */
+"error.title" = "错误";
+"error.ok" = "确定";
+"error.unknown" = "未知错误";
+
+/* Overwrite Dialog */
+"overwrite.title" = "文件已存在";
+"overwrite.cancel" = "取消";
+"overwrite.confirm" = "覆盖";
+"overwrite.message" = "以下文件将被覆盖：\n%@";
+
+/* Output Selection */
+"output.selectFolder" = "选择";
+"output.message" = "选择 PNG 文件的保存位置";
+
+/* Theme */
+"theme.switchToLight" = "切换到浅色模式";
+"theme.switchToDark" = "切换到深色模式";
+"theme.expand" = "展开设置";
+"theme.collapse" = "收起设置";
+
+/* Conversion Result */
+"result.pages" = "%d 页";
+"result.dpi" = "%d DPI";
+"result.size" = "%.1f MB";
+"result.time" = "%.1f 秒";
+
+/* Conversion Errors */
+"error.fileNotFound" = "文件不存在: %@";
+"error.invalidPDF" = "无效的 PDF 文件";
+"error.renderFailed" = "渲染失败: %@";
+"error.saveFailed" = "保存失败: %@";
+"error.conversionCancelled" = "转换已取消";
+"error.cannotGetPage" = "无法获取第 %d 页";
+"error.cannotCreateContext" = "无法创建图形上下文";
+"error.cannotGenerateImage" = "无法生成图像";
+"error.cannotGeneratePNG" = "无法生成 PNG 数据";

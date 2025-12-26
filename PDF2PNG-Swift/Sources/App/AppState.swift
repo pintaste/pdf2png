@@ -87,8 +87,8 @@ class AppState: ObservableObject {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "选择"
-        panel.message = "选择 PNG 文件的保存位置"
+        panel.prompt = String(localized: "output.selectFolder")
+        panel.message = String(localized: "output.message")
 
         // 默认定位到第一个输入文件的目录
         if let firstFile = pendingFiles.first {

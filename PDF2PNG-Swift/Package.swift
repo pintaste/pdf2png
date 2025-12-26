@@ -5,6 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "PDF2PNG",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v13)
     ],

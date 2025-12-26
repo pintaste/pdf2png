@@ -26,15 +26,15 @@ actor PDFConverter {
         var errorDescription: String? {
             switch self {
             case .fileNotFound(let path):
-                return "文件不存在: \(path)"
+                return String(localized: "error.fileNotFound").replacingOccurrences(of: "%@", with: path)
             case .invalidPDF:
-                return "无效的 PDF 文件"
+                return String(localized: "error.invalidPDF")
             case .renderFailed(let reason):
-                return "渲染失败: \(reason)"
+                return String(localized: "error.renderFailed").replacingOccurrences(of: "%@", with: reason)
             case .saveFailed(let reason):
-                return "保存失败: \(reason)"
+                return String(localized: "error.saveFailed").replacingOccurrences(of: "%@", with: reason)
             case .cancelled:
-                return "转换已取消"
+                return String(localized: "error.conversionCancelled")
             }
         }
     }
@@ -92,7 +92,7 @@ actor PDFConverter {
         // 单页快速路径
         if pageCount == 1 {
             guard let page = pdfDocument.page(at: 0) else {
-                throw ConversionError.renderFailed("无法获取页面")
+                throw ConversionError.renderFailed(String(localized: "error.cannotGetPage").replacingOccurrences(of: "%d", with: "1"))
             }
             let outputURL = actualOutputDir.appendingPathComponent("\(baseName).png")
             let (data, dpi) = try await convertPage(page: page, settings: settings)
@@ -112,7 +112,7 @@ actor PDFConverter {
 
                 group.addTask { [self] in
                     guard let page = pdfDocument.page(at: pageIndex) else {
-                        throw ConversionError.renderFailed("无法获取第 \(pageIndex + 1) 页")
+                        throw ConversionError.renderFailed(String(localized: "error.cannotGetPage").replacingOccurrences(of: "%d", with: "\(pageIndex + 1)"))
                     }
 
                     let outputURL = actualOutputDir.appendingPathComponent("page\(pageIndex + 1).png")
@@ -289,7 +289,7 @@ actor PDFConverter {
                 space: colorSpace,
                 bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
               ) else {
-            throw ConversionError.renderFailed("无法创建图形上下文")
+            throw ConversionError.renderFailed(String(localized: "error.cannotCreateContext"))
         }
 
         // 白色背景
@@ -302,13 +302,13 @@ actor PDFConverter {
 
         // 获取图像
         guard let cgImage = context.makeImage() else {
-            throw ConversionError.renderFailed("无法生成图像")
+            throw ConversionError.renderFailed(String(localized: "error.cannotGenerateImage"))
         }
 
         // 转换为 PNG
         let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
         guard let pngData = bitmapRep.representation(using: .png, properties: [:]) else {
-            throw ConversionError.renderFailed("无法生成 PNG 数据")
+            throw ConversionError.renderFailed(String(localized: "error.cannotGeneratePNG"))
         }
 
         return pngData

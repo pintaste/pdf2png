@@ -160,20 +160,20 @@ struct MainView: View {
                 appState.showError(error.localizedDescription)
             }
         }
-        .alert("错误", isPresented: $appState.showError) {
-            Button("确定", role: .cancel) {}
+        .alert(String(localized: "error.title"), isPresented: $appState.showError) {
+            Button(String(localized: "error.ok"), role: .cancel) {}
         } message: {
-            Text(appState.errorMessage ?? "未知错误")
+            Text(appState.errorMessage ?? String(localized: "error.unknown"))
         }
-        .alert("文件已存在", isPresented: $appState.showOverwriteConfirm) {
-            Button("取消", role: .cancel) {
+        .alert(String(localized: "overwrite.title"), isPresented: $appState.showOverwriteConfirm) {
+            Button(String(localized: "overwrite.cancel"), role: .cancel) {
                 appState.filesToOverwrite = []
             }
-            Button("覆盖", role: .destructive) {
+            Button(String(localized: "overwrite.confirm"), role: .destructive) {
                 appState.confirmOverwriteAndConvert()
             }
         } message: {
-            Text("以下文件将被覆盖：\n\(appState.filesToOverwrite.joined(separator: "\n"))")
+            Text(String(localized: "overwrite.message").replacingOccurrences(of: "%@", with: appState.filesToOverwrite.joined(separator: "\n")))
         }
     }
 
@@ -196,7 +196,7 @@ struct MainView: View {
                     .foregroundColor(ThemeColors.textPrimary)
 
                 // 副标题
-                Text("HD PDF to PNG Converter")
+                Text("app.subtitle", bundle: .main)
                     .font(.system(size: 13, weight: .light))
                     .foregroundColor(ThemeColors.textSecondary)
             }
@@ -214,10 +214,10 @@ struct MainView: View {
 
             // 底部提示 - 两行
             VStack(spacing: 4) {
-                Text("Drop PDF files here")
+                Text("app.dropHint1", bundle: .main)
                     .font(.system(size: 13, weight: .regular))
                     .foregroundColor(ThemeColors.textPrimary)
-                Text("or click the yellow area to select")
+                Text("app.dropHint2", bundle: .main)
                     .font(.system(size: 13, weight: .regular))
                     .foregroundColor(ThemeColors.textPrimary)
             }
@@ -279,7 +279,7 @@ struct MainView: View {
             if isSettingsExpanded {
                 // 设置标题
                 HStack {
-                    Text("设置")
+                    Text("settings.title", bundle: .main)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(ThemeColors.textMuted)
                     Spacer()
@@ -292,7 +292,7 @@ struct MainView: View {
                     // 模式切换
                     HStack(spacing: 0) {
                         Button(action: { appState.settings.qualityFirst = true }) {
-                            Text("质量优先")
+                            Text("settings.qualityFirst", bundle: .main)
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(appState.settings.qualityFirst ? ThemeColors.accent : ThemeColors.textMuted)
                                 .padding(.horizontal, 12)
@@ -306,7 +306,7 @@ struct MainView: View {
                             .frame(width: 1, height: 16)
 
                         Button(action: { appState.settings.qualityFirst = false }) {
-                            Text("大小限制")
+                            Text("settings.sizeLimit", bundle: .main)
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(appState.settings.qualityFirst ? ThemeColors.textMuted : ThemeColors.accent)
                                 .padding(.horizontal, 12)
@@ -392,13 +392,13 @@ struct MainView: View {
     }
 
     /// 转换按钮标题
-    private var convertButtonTitle: String {
+    private var convertButtonTitle: LocalizedStringKey {
         if !appState.pendingFiles.isEmpty {
-            return "开始转换"
+            return "button.startConvert"
         } else if hasFailedTasks {
-            return "重新开始"
+            return "button.restart"
         }
-        return "开始转换"
+        return "button.startConvert"
     }
 
     /// 重新开始失败的任务
@@ -419,7 +419,9 @@ struct MainView: View {
         let setting = appState.settings.qualityFirst
             ? "\(appState.settings.maxDPI) DPI"
             : "\(Int(appState.settings.maxSizeMB)) MB"
-        return "\(count) 个文件 · \(setting)"
+        return String(localized: "fileList.summary", defaultValue: "\(count) files · \(setting)")
+            .replacingOccurrences(of: "%d", with: "\(count)")
+            .replacingOccurrences(of: "%@", with: setting)
     }
 
     // MARK: - File List
@@ -428,7 +430,7 @@ struct MainView: View {
         VStack(spacing: 0) {
             // 文件列表标题
             HStack {
-                Text("文件列表")
+                Text("fileList.title", bundle: .main)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(ThemeColors.textMuted)
                 Spacer()
@@ -477,7 +479,7 @@ struct MainView: View {
         HStack(spacing: 8) {
             // 添加按钮
             Button(action: { appState.showFilePicker = true }) {
-                Text("添加")
+                Text("button.add", bundle: .main)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(ThemeColors.textSecondary)
                     .frame(width: 56, height: 28)
@@ -492,7 +494,7 @@ struct MainView: View {
 
             // 清空按钮
             Button(action: { appState.clearFiles() }) {
-                Text("清空")
+                Text("button.clear", bundle: .main)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(ThemeColors.textSecondary)
                     .frame(width: 56, height: 28)
@@ -510,7 +512,7 @@ struct MainView: View {
             if appState.isConverting {
                 // 取消按钮
                 Button(action: { appState.cancelConversion() }) {
-                    Text("取消")
+                    Text("button.cancel", bundle: .main)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(ThemeColors.textSecondary)
                         .frame(width: 56, height: 28)
@@ -682,7 +684,7 @@ struct ThemeToggleButton: View {
             .onHover { hovering in
                 isHovering = hovering
             }
-            .help(themeManager.isDarkMode ? "切换到浅色模式" : "切换到深色模式")
+            .help(themeManager.isDarkMode ? String(localized: "theme.switchToLight") : String(localized: "theme.switchToDark"))
     }
 }
 
@@ -707,7 +709,7 @@ struct SettingsToggleButton: View {
             .onHover { hovering in
                 isHovering = hovering
             }
-            .help(isExpanded ? "收起设置" : "展开设置")
+            .help(isExpanded ? String(localized: "theme.collapse") : String(localized: "theme.expand"))
     }
 }
 
