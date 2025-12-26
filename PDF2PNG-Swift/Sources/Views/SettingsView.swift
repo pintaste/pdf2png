@@ -9,35 +9,35 @@ struct SettingsView: View {
     var body: some View {
         Form {
             // 输出设置
-            Section("输出设置") {
-                Toggle("使用自定义输出目录", isOn: $useCustomOutput)
+            Section(String(localized: "settingsView.outputSettings", bundle: .module)) {
+                Toggle(String(localized: "settingsView.useCustomOutput", bundle: .module), isOn: $useCustomOutput)
 
                 if useCustomOutput {
                     HStack {
-                        TextField("输出目录", text: $outputPath)
+                        TextField(String(localized: "settingsView.outputDirectory", bundle: .module), text: $outputPath)
                             .textFieldStyle(.roundedBorder)
 
-                        Button("选择...") {
+                        Button(String(localized: "settingsView.selectDirectory", bundle: .module)) {
                             selectOutputDirectory()
                         }
                     }
                 } else {
-                    Text("输出到源文件所在目录")
+                    Text("settingsView.outputToSource", bundle: .module)
                         .foregroundColor(.secondary)
                 }
             }
 
             // 质量设置
-            Section("质量设置") {
-                Picker("输出模式", selection: $appState.settings.qualityFirst) {
-                    Text("大小限制").tag(false)
-                    Text("质量优先").tag(true)
+            Section(String(localized: "settingsView.qualitySettings", bundle: .module)) {
+                Picker(String(localized: "settingsView.outputMode", bundle: .module), selection: $appState.settings.qualityFirst) {
+                    Text("settings.sizeLimit", bundle: .module).tag(false)
+                    Text("settings.qualityFirst", bundle: .module).tag(true)
                 }
                 .pickerStyle(.segmented)
 
                 if !appState.settings.qualityFirst {
                     HStack {
-                        Text("最大文件大小")
+                        Text("settingsView.maxFileSize", bundle: .module)
                         Spacer()
                         TextField("", value: $appState.settings.maxSizeMB, format: .number)
                             .textFieldStyle(.roundedBorder)
@@ -48,7 +48,7 @@ struct SettingsView: View {
 
                 VStack(alignment: .leading) {
                     HStack {
-                        Text("最大 DPI")
+                        Text("settingsView.maxDPI", bundle: .module)
                         Spacer()
                         Text("\(appState.settings.maxDPI)")
                             .foregroundColor(.secondary)
@@ -65,7 +65,7 @@ struct SettingsView: View {
 
                 VStack(alignment: .leading) {
                     HStack {
-                        Text("最小 DPI")
+                        Text("settingsView.minDPI", bundle: .module)
                         Spacer()
                         Text("\(appState.settings.minDPI)")
                             .foregroundColor(.secondary)
@@ -82,24 +82,24 @@ struct SettingsView: View {
             }
 
             // 预设
-            Section("快速预设") {
+            Section(String(localized: "settingsView.presets", bundle: .module)) {
                 HStack {
-                    presetButton(title: "标准", dpi: 600, sizeMB: 5.0, qualityFirst: false)
-                    presetButton(title: "高清", dpi: 1200, sizeMB: 10.0, qualityFirst: false)
-                    presetButton(title: "极致", dpi: 2400, sizeMB: 0, qualityFirst: true)
+                    presetButton(title: String(localized: "settingsView.standard", bundle: .module), dpi: 600, sizeMB: 5.0, qualityFirst: false)
+                    presetButton(title: String(localized: "settingsView.hd", bundle: .module), dpi: 1200, sizeMB: 10.0, qualityFirst: false)
+                    presetButton(title: String(localized: "settingsView.ultra", bundle: .module), dpi: 2400, sizeMB: 0, qualityFirst: true)
                 }
             }
 
             // 关于
-            Section("关于") {
+            Section(String(localized: "settingsView.about", bundle: .module)) {
                 HStack {
-                    Text("PDF2PNG Swift 原生版")
+                    Text("settingsView.nativeVersion", bundle: .module)
                     Spacer()
-                    Text("v1.0.0")
+                    Text("v4.2.0")
                         .foregroundColor(.secondary)
                 }
 
-                Link("GitHub 仓库",
+                Link(String(localized: "settingsView.githubRepo", bundle: .module),
                      destination: URL(string: "https://github.com/your-repo/pdf2png")!)
             }
         }

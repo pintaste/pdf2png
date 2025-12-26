@@ -8,8 +8,10 @@ macOS 原生 PDF 到 PNG 转换工具，使用 Swift + PDFKit 构建。
 - **轻量体积**：应用仅 ~5MB（Python 版本 ~80MB）
 - **即时启动**：启动时间 <0.5 秒
 - **现代 UI**：SwiftUI 构建的原生 macOS 界面
-- **智能压缩**：自动调整 DPI 以满足文件大小限制
+- **智能压缩**：自动调整 DPI 以满足文件大小限制，支持应急降档至 18 DPI
 - **批量处理**：支持多文件拖放和批量转换
+- **双语支持**：中文/英文界面切换
+- **深色模式**：完整的深色/浅色主题支持
 
 ## 系统要求
 
@@ -93,14 +95,32 @@ PDF2PNG-Swift/
 │   │   └── PDFConverter.swift    # PDF 转换核心
 │   ├── Models/
 │   │   ├── ConversionTask.swift  # 任务模型
-│   │   └── ConversionSettings.swift
+│   │   ├── ConversionSettings.swift
+│   │   └── AppError.swift        # 错误定义
 │   ├── Views/
 │   │   ├── MainView.swift        # 主界面
 │   │   └── SettingsView.swift    # 设置界面
 │   └── Resources/
+│       ├── en.lproj/             # 英文本地化
+│       └── zh-Hans.lproj/        # 中文本地化
 ├── Tests/
 └── Package.swift
 ```
+
+## 更新日志
+
+### v4.2.0
+- 🐛 修复大小限制算法，确保文件绝不超过限制
+- ✨ Size Limit 模式显示 DPI 范围（如 `18-150DPI`）
+- ✨ 任务完成后"重新开始"按钮可用
+- 🎨 优化状态文字颜色饱和度，提升可读性
+
+### v4.1.0
+- 🌐 双语支持（中文/英文）
+- 🌙 深色/浅色主题切换
+
+### v4.0.0
+- 🚀 首个 Swift 原生版本发布
 
 ## 许可证
 

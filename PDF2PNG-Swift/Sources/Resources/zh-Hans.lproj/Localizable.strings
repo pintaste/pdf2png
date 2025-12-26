@@ -62,6 +62,10 @@
 "theme.expand" = "展开设置";
 "theme.collapse" = "收起设置";
 
+/* Language */
+"language.switchToEnglish" = "切换到英文";
+"language.switchToChinese" = "切换到中文";
+
 /* Conversion Result */
 "result.pages" = "%d 页";
 "result.dpi" = "%d DPI";
@@ -78,3 +82,59 @@
 "error.cannotCreateContext" = "无法创建图形上下文";
 "error.cannotGenerateImage" = "无法生成图像";
 "error.cannotGeneratePNG" = "无法生成 PNG 数据";
+
+/* App Errors */
+"appError.fileNotFound" = "文件不存在: %@";
+"appError.invalidFileType" = "不支持的文件类型: %@";
+"appError.fileReadError" = "读取文件失败: %@";
+"appError.fileWriteError" = "写入文件失败: %@";
+"appError.pdfRenderFailed" = "PDF 渲染失败: %@";
+"appError.pdfPageNotFound" = "找不到第 %d 页";
+"appError.conversionFailed" = "转换失败: %@";
+"appError.noWritePermission" = "没有写入权限: %@";
+"appError.invalidSettings" = "设置无效: %@";
+
+/* App Error Short */
+"appError.short.fileNotFound" = "文件不存在";
+"appError.short.invalidFileType" = "不支持的类型";
+"appError.short.fileReadError" = "读取失败";
+"appError.short.fileWriteError" = "写入失败";
+"appError.short.invalidPDF" = "无效的 PDF";
+"appError.short.pdfRenderFailed" = "渲染失败";
+"appError.short.pdfPageNotFound" = "页面不存在";
+"appError.short.conversionCancelled" = "已取消";
+"appError.short.conversionFailed" = "转换失败";
+"appError.short.noWritePermission" = "权限不足";
+"appError.short.invalidSettings" = "设置无效";
+
+/* File */
+"file.folder" = "文件夹";
+
+/* Settings View */
+"settingsView.outputSettings" = "输出设置";
+"settingsView.useCustomOutput" = "使用自定义输出目录";
+"settingsView.outputDirectory" = "输出目录";
+"settingsView.selectDirectory" = "选择...";
+"settingsView.outputToSource" = "输出到源文件所在目录";
+"settingsView.qualitySettings" = "质量设置";
+"settingsView.outputMode" = "输出模式";
+"settingsView.maxFileSize" = "最大文件大小";
+"settingsView.maxDPI" = "最大 DPI";
+"settingsView.minDPI" = "最小 DPI";
+"settingsView.presets" = "快速预设";
+"settingsView.standard" = "标准";
+"settingsView.hd" = "高清";
+"settingsView.ultra" = "极致";
+"settingsView.about" = "关于";
+"settingsView.nativeVersion" = "PDF2PNG Swift 原生版";
+"settingsView.githubRepo" = "GitHub 仓库";
+
+/* Preset Display Names */
+"preset.dpi.standard" = "标准 (600 DPI)";
+"preset.dpi.high" = "高清 (1200 DPI)";
+"preset.dpi.ultra" = "超高清 (2400 DPI)";
+"preset.dpi.custom" = "自定义";
+"preset.size.small" = "小 (2 MB)";
+"preset.size.medium" = "中 (5 MB)";
+"preset.size.large" = "大 (10 MB)";
+"preset.size.unlimited" = "无限制";

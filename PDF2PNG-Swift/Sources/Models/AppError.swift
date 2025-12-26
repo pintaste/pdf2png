@@ -26,27 +26,27 @@ enum AppError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .fileNotFound(let path):
-            return "文件不存在: \(path)"
+            return String(localized: "appError.fileNotFound", bundle: .module).replacingOccurrences(of: "%@", with: path)
         case .invalidFileType(let ext):
-            return "不支持的文件类型: \(ext)"
+            return String(localized: "appError.invalidFileType", bundle: .module).replacingOccurrences(of: "%@", with: ext)
         case .fileReadError(let reason):
-            return "读取文件失败: \(reason)"
+            return String(localized: "appError.fileReadError", bundle: .module).replacingOccurrences(of: "%@", with: reason)
         case .fileWriteError(let reason):
-            return "写入文件失败: \(reason)"
+            return String(localized: "appError.fileWriteError", bundle: .module).replacingOccurrences(of: "%@", with: reason)
         case .invalidPDF:
-            return "无效的 PDF 文件"
+            return String(localized: "appError.short.invalidPDF", bundle: .module)
         case .pdfRenderFailed(let reason):
-            return "PDF 渲染失败: \(reason)"
+            return String(localized: "appError.pdfRenderFailed", bundle: .module).replacingOccurrences(of: "%@", with: reason)
         case .pdfPageNotFound(let page):
-            return "找不到第 \(page) 页"
+            return String(localized: "appError.pdfPageNotFound", bundle: .module).replacingOccurrences(of: "%d", with: "\(page)")
         case .conversionCancelled:
-            return "转换已取消"
+            return String(localized: "status.cancelled", bundle: .module)
         case .conversionFailed(let reason):
-            return "转换失败: \(reason)"
+            return String(localized: "appError.conversionFailed", bundle: .module).replacingOccurrences(of: "%@", with: reason)
         case .noWritePermission(let path):
-            return "没有写入权限: \(path)"
+            return String(localized: "appError.noWritePermission", bundle: .module).replacingOccurrences(of: "%@", with: path)
         case .invalidSettings(let reason):
-            return "设置无效: \(reason)"
+            return String(localized: "appError.invalidSettings", bundle: .module).replacingOccurrences(of: "%@", with: reason)
         }
     }
 
@@ -54,27 +54,27 @@ enum AppError: LocalizedError {
     var shortDescription: String {
         switch self {
         case .fileNotFound:
-            return "文件不存在"
+            return String(localized: "appError.short.fileNotFound", bundle: .module)
         case .invalidFileType:
-            return "不支持的文件类型"
+            return String(localized: "appError.short.invalidFileType", bundle: .module)
         case .fileReadError:
-            return "读取失败"
+            return String(localized: "appError.short.fileReadError", bundle: .module)
         case .fileWriteError:
-            return "写入失败"
+            return String(localized: "appError.short.fileWriteError", bundle: .module)
         case .invalidPDF:
-            return "无效的 PDF"
+            return String(localized: "appError.short.invalidPDF", bundle: .module)
         case .pdfRenderFailed:
-            return "渲染失败"
+            return String(localized: "appError.short.pdfRenderFailed", bundle: .module)
         case .pdfPageNotFound:
-            return "页面不存在"
+            return String(localized: "appError.short.pdfPageNotFound", bundle: .module)
         case .conversionCancelled:
-            return "已取消"
+            return String(localized: "appError.short.conversionCancelled", bundle: .module)
         case .conversionFailed:
-            return "转换失败"
+            return String(localized: "appError.short.conversionFailed", bundle: .module)
         case .noWritePermission:
-            return "权限不足"
+            return String(localized: "appError.short.noWritePermission", bundle: .module)
         case .invalidSettings:
-            return "设置无效"
+            return String(localized: "appError.short.invalidSettings", bundle: .module)
         }
     }
 }

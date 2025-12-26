@@ -10,9 +10,19 @@ actor PDFConverter {
     /// 转换结果
     struct ConversionResult {
         let outputURLs: [URL]
-        let actualDPI: Int
+        let minDPI: Int      // 最低使用的 DPI
+        let maxDPI: Int      // 最高使用的 DPI
         let totalSizeBytes: Int
         let renderTimeMs: Double
+
+        /// 兼容性：返回 DPI 显示字符串
+        var dpiDisplay: String {
+            if minDPI == maxDPI {
+                return "\(minDPI)"
+            } else {
+                return "\(minDPI)-\(maxDPI)"
+            }
+        }
     }
 
     /// 转换错误
@@ -26,15 +36,15 @@ actor PDFConverter {
         var errorDescription: String? {
             switch self {
             case .fileNotFound(let path):
-                return String(localized: "error.fileNotFound").replacingOccurrences(of: "%@", with: path)
+                return String(localized: "error.fileNotFound", bundle: .module).replacingOccurrences(of: "%@", with: path)
             case .invalidPDF:
-                return String(localized: "error.invalidPDF")
+                return String(localized: "error.invalidPDF", bundle: .module)
             case .renderFailed(let reason):
-                return String(localized: "error.renderFailed").replacingOccurrences(of: "%@", with: reason)
+                return String(localized: "error.renderFailed", bundle: .module).replacingOccurrences(of: "%@", with: reason)
             case .saveFailed(let reason):
-                return String(localized: "error.saveFailed").replacingOccurrences(of: "%@", with: reason)
+                return String(localized: "error.saveFailed", bundle: .module).replacingOccurrences(of: "%@", with: reason)
             case .cancelled:
-                return String(localized: "error.conversionCancelled")
+                return String(localized: "error.conversionCancelled", bundle: .module)
             }
         }
     }
@@ -92,14 +102,14 @@ actor PDFConverter {
         // 单页快速路径
         if pageCount == 1 {
             guard let page = pdfDocument.page(at: 0) else {
-                throw ConversionError.renderFailed(String(localized: "error.cannotGetPage").replacingOccurrences(of: "%d", with: "1"))
+                throw ConversionError.renderFailed(String(localized: "error.cannotGetPage", bundle: .module).replacingOccurrences(of: "%d", with: "1"))
             }
             let outputURL = actualOutputDir.appendingPathComponent("\(baseName).png")
             let (data, dpi) = try await convertPage(page: page, settings: settings)
             try data.write(to: outputURL)
             progress(ProgressInfo(currentPage: 1, totalPages: 1, progress: 1.0))
             let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
-            return ConversionResult(outputURLs: [outputURL], actualDPI: dpi, totalSizeBytes: data.count, renderTimeMs: elapsed)
+            return ConversionResult(outputURLs: [outputURL], minDPI: dpi, maxDPI: dpi, totalSizeBytes: data.count, renderTimeMs: elapsed)
         }
 
         // 多页并行处理（每页独立计算 DPI）
@@ -112,7 +122,7 @@ actor PDFConverter {
 
                 group.addTask { [self] in
                     guard let page = pdfDocument.page(at: pageIndex) else {
-                        throw ConversionError.renderFailed(String(localized: "error.cannotGetPage").replacingOccurrences(of: "%d", with: "\(pageIndex + 1)"))
+                        throw ConversionError.renderFailed(String(localized: "error.cannotGetPage", bundle: .module).replacingOccurrences(of: "%d", with: "\(pageIndex + 1)"))
                     }
 
                     let outputURL = actualOutputDir.appendingPathComponent("page\(pageIndex + 1).png")
@@ -147,13 +157,16 @@ actor PDFConverter {
 
         let outputURLs = results.map { $0.url }
         let totalSize = results.reduce(0) { $0 + $1.size }
-        // 返回 DPI 范围（最小值）
-        let minDPI = results.map { $0.dpi }.min() ?? settings.maxDPI
+        // 返回 DPI 范围
+        let dpiValues = results.map { $0.dpi }
+        let resultMinDPI = dpiValues.min() ?? settings.maxDPI
+        let resultMaxDPI = dpiValues.max() ?? settings.maxDPI
         let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
 
         return ConversionResult(
             outputURLs: outputURLs,
-            actualDPI: minDPI,
+            minDPI: resultMinDPI,
+            maxDPI: resultMaxDPI,
             totalSizeBytes: totalSize,
             renderTimeMs: elapsed
         )
@@ -256,13 +269,47 @@ actor PDFConverter {
                 currentDPI = settings.minDPI
                 finalSize = resultData.count
 
-                // 应急降档（如 min_dpi 仍超限）
+                // 应急降档（持续降低直到满足限制或达到绝对下限）
                 var emergencyDPI = settings.minDPI
-                while finalSize > maxSizeBytes && emergencyDPI > ConversionSettings.emergencyMinDPI {
-                    emergencyDPI = Int(Double(emergencyDPI) * 0.8)
+                let absoluteMinDPI = 18  // 绝对最低 DPI（再低则图像不可用）
+
+                while finalSize > maxSizeBytes && emergencyDPI > absoluteMinDPI {
+                    emergencyDPI = max(absoluteMinDPI, Int(Double(emergencyDPI) * 0.8))
                     resultData = try self.renderPage(page: page, dpi: emergencyDPI)
                     finalSize = resultData.count
                     currentDPI = emergencyDPI
+                }
+
+                // 如果 absoluteMinDPI 仍超限，使用二分法在 [absoluteMinDPI, currentDPI] 范围内精确查找
+                if finalSize > maxSizeBytes {
+                    var lowDPI = absoluteMinDPI
+                    var highDPI = emergencyDPI
+                    var bestData: Data? = nil
+                    var bestDPI = absoluteMinDPI
+
+                    // 先测试最低 DPI
+                    let minData = try self.renderPage(page: page, dpi: absoluteMinDPI)
+                    if minData.count <= maxSizeBytes {
+                        bestData = minData
+                        bestDPI = absoluteMinDPI
+
+                        // 二分法找到最大可用 DPI
+                        while highDPI - lowDPI > 2 {
+                            let midDPI = (lowDPI + highDPI) / 2
+                            let midData = try self.renderPage(page: page, dpi: midDPI)
+                            if midData.count <= maxSizeBytes {
+                                lowDPI = midDPI
+                                bestData = midData
+                                bestDPI = midDPI
+                            } else {
+                                highDPI = midDPI
+                            }
+                        }
+
+                        resultData = bestData!
+                        currentDPI = bestDPI
+                    }
+                    // 如果即使 absoluteMinDPI 也超限，保持当前结果（已是最佳努力）
                 }
             }
 
@@ -289,7 +336,7 @@ actor PDFConverter {
                 space: colorSpace,
                 bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
               ) else {
-            throw ConversionError.renderFailed(String(localized: "error.cannotCreateContext"))
+            throw ConversionError.renderFailed(String(localized: "error.cannotCreateContext", bundle: .module))
         }
 
         // 白色背景
@@ -302,13 +349,13 @@ actor PDFConverter {
 
         // 获取图像
         guard let cgImage = context.makeImage() else {
-            throw ConversionError.renderFailed(String(localized: "error.cannotGenerateImage"))
+            throw ConversionError.renderFailed(String(localized: "error.cannotGenerateImage", bundle: .module))
         }
 
         // 转换为 PNG
         let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
         guard let pngData = bitmapRep.representation(using: .png, properties: [:]) else {
-            throw ConversionError.renderFailed(String(localized: "error.cannotGeneratePNG"))
+            throw ConversionError.renderFailed(String(localized: "error.cannotGeneratePNG", bundle: .module))
         }
 
         return pngData

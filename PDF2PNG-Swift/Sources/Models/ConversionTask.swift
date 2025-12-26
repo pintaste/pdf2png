@@ -15,7 +15,7 @@ struct ConversionTask: Identifiable {
     var fileSizeFormatted: String {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
               let size = attrs[.size] as? Int64 else {
-            return String(localized: "error.unknown")
+            return String(localized: "error.unknown", bundle: .module)
         }
         return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
     }
@@ -54,23 +54,25 @@ enum TaskStatus {
     var description: String {
         switch self {
         case .pending:
-            return String(localized: "status.pending")
+            return String(localized: "status.pending", bundle: .module)
         case .converting(_, let currentPage, let totalPages):
             if totalPages > 1 {
-                return String(localized: "status.page")
+                return String(localized: "status.page", bundle: .module)
                     .replacingOccurrences(of: "%d/%d", with: "\(currentPage)/\(totalPages)")
             } else {
-                return String(localized: "status.converting")
+                return String(localized: "status.converting", bundle: .module)
             }
         case .completed(let result):
             let size = ByteCountFormatter.string(fromByteCount: Int64(result.totalSizeBytes), countStyle: .file)
             let timeStr = formatTime(result.renderTimeMs)
-            return "\(String(localized: "status.completed")) (\(size), \(result.actualDPI)DPI, \(timeStr))"
+            return "\(String(localized: "status.completed", bundle: .module)) (\(size), \(result.dpiDisplay)DPI, \(timeStr))"
         case .failed(let error):
-            if error == "已取消" || error == "Cancelled" {
-                return String(localized: "status.cancelled")
+            // Check for cancelled status (supports both legacy hardcoded and localized strings)
+            let cancelledStrings = ["已取消", "Cancelled", String(localized: "status.cancelled", bundle: .module)]
+            if cancelledStrings.contains(error) {
+                return String(localized: "status.cancelled", bundle: .module)
             }
-            return "\(String(localized: "status.failed")): \(error)"
+            return "\(String(localized: "status.failed", bundle: .module)): \(error)"
         }
     }
 

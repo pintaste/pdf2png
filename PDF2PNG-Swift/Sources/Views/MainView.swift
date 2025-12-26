@@ -43,6 +43,85 @@ class ThemeManager: ObservableObject {
     }
 }
 
+// MARK: - Language Manager
+
+class LanguageManager: ObservableObject {
+    static let shared = LanguageManager()
+
+    @Published var currentLanguage: String {
+        didSet {
+            UserDefaults.standard.set([currentLanguage], forKey: "AppleLanguages")
+            UserDefaults.standard.synchronize()
+            updateBundle()
+        }
+    }
+
+    /// 当前语言的 Bundle
+    @Published private(set) var bundle: Bundle = .module
+
+    /// 刷新标识符 - 用于强制刷新视图
+    @Published var refreshID = UUID()
+
+    /// 支持的语言
+    static let supportedLanguages = ["en", "zh-Hans"]
+
+    /// 是否为中文
+    var isChinese: Bool {
+        currentLanguage.hasPrefix("zh")
+    }
+
+    init() {
+        // 从 UserDefaults 读取用户设置的语言，否则使用系统语言
+        if let languages = UserDefaults.standard.array(forKey: "AppleLanguages") as? [String],
+           let first = languages.first {
+            currentLanguage = first
+        } else {
+            currentLanguage = Locale.preferredLanguages.first ?? "en"
+        }
+        updateBundle()
+    }
+
+    /// 切换语言
+    func toggleLanguage() {
+        let oldLang = currentLanguage
+        if isChinese {
+            currentLanguage = "en"
+        } else {
+            currentLanguage = "zh-Hans"
+        }
+        print("[LanguageManager] Language changed: \(oldLang) -> \(currentLanguage)")
+        // 触发刷新
+        refreshID = UUID()
+        print("[LanguageManager] RefreshID updated: \(refreshID)")
+    }
+
+    /// 更新 Bundle
+    private func updateBundle() {
+        // SPM 编译后目录名可能是小写，尝试多种格式
+        let possibleCodes = isChinese ? ["zh-Hans", "zh-hans", "zh"] : ["en"]
+        for langCode in possibleCodes {
+            if let path = Bundle.module.path(forResource: langCode, ofType: "lproj"),
+               let langBundle = Bundle(path: path) {
+                bundle = langBundle
+                print("[LanguageManager] Loaded bundle: \(langCode).lproj")
+                return
+            }
+        }
+        bundle = .module
+        print("[LanguageManager] Fallback to module bundle")
+    }
+
+    /// 语言显示名称
+    var languageDisplayName: String {
+        isChinese ? "中" : "EN"
+    }
+
+    /// 获取本地化字符串
+    func localized(_ key: String) -> String {
+        bundle.localizedString(forKey: key, value: nil, table: nil)
+    }
+}
+
 // MARK: - Theme Colors
 
 struct ThemeColors {
@@ -90,14 +169,30 @@ struct ThemeColors {
     static let accent = Color(hex: "#ffd34d")
     static let accentHover = Color(hex: "#FFE082")
 
+    // 选择器强调色 - 浅色模式用深色以增加对比度
+    static var pickerAccent: Color {
+        isDark ? Color(hex: "#ffd34d") : Color(hex: "#d4a017")
+    }
+
     // 文件图标色
     static var fileIcon: Color {
         isDark ? Color(hex: "#ffd34d") : Color(hex: "#555555")
     }
 
-    // 状态色
+    // 状态色（用于图标）
     static let success = Color(hex: "#4ade80")
     static let error = Color(hex: "#ef4444")
+
+    // 状态文字色（低饱和度，易读）
+    static var statusTextSuccess: Color {
+        isDark ? Color(hex: "#86c794") : Color(hex: "#3d7a4a")
+    }
+    static var statusTextError: Color {
+        isDark ? Color(hex: "#d88888") : Color(hex: "#b54545")
+    }
+    static var statusTextProgress: Color {
+        isDark ? Color(hex: "#d4b56a") : Color(hex: "#a08030")
+    }
 }
 
 // MARK: - Color Extension
@@ -131,12 +226,15 @@ extension Color {
 struct MainView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject private var themeManager = ThemeManager.shared
+    @ObservedObject private var languageManager = LanguageManager.shared
     @State private var isDragging = false
     @State private var isHoveringDropZone = false
     @State private var isSettingsExpanded = false
 
     // 用于触发主题刷新的计算属性
     private var themeRefreshKey: Bool { themeManager.isDarkMode }
+    // 用于触发语言刷新的计算属性
+    private var languageRefreshKey: String { languageManager.currentLanguage }
 
     var body: some View {
         Group {
@@ -146,7 +244,7 @@ struct MainView: View {
                 workingStateView
             }
         }
-        .id(themeRefreshKey)  // 主题变化时强制刷新
+        .id("\(themeRefreshKey)-\(languageManager.refreshID)")  // 主题或语言变化时强制刷新
         .background(ThemeColors.backgroundPrimary)
         .fileImporter(
             isPresented: $appState.showFilePicker,
@@ -160,20 +258,20 @@ struct MainView: View {
                 appState.showError(error.localizedDescription)
             }
         }
-        .alert(String(localized: "error.title"), isPresented: $appState.showError) {
-            Button(String(localized: "error.ok"), role: .cancel) {}
+        .alert(String(localized: "error.title", bundle: LanguageManager.shared.bundle), isPresented: $appState.showError) {
+            Button(String(localized: "error.ok", bundle: LanguageManager.shared.bundle), role: .cancel) {}
         } message: {
-            Text(appState.errorMessage ?? String(localized: "error.unknown"))
+            Text(appState.errorMessage ?? String(localized: "error.unknown", bundle: LanguageManager.shared.bundle))
         }
-        .alert(String(localized: "overwrite.title"), isPresented: $appState.showOverwriteConfirm) {
-            Button(String(localized: "overwrite.cancel"), role: .cancel) {
+        .alert(String(localized: "overwrite.title", bundle: LanguageManager.shared.bundle), isPresented: $appState.showOverwriteConfirm) {
+            Button(String(localized: "overwrite.cancel", bundle: LanguageManager.shared.bundle), role: .cancel) {
                 appState.filesToOverwrite = []
             }
-            Button(String(localized: "overwrite.confirm"), role: .destructive) {
+            Button(String(localized: "overwrite.confirm", bundle: LanguageManager.shared.bundle), role: .destructive) {
                 appState.confirmOverwriteAndConvert()
             }
         } message: {
-            Text(String(localized: "overwrite.message").replacingOccurrences(of: "%@", with: appState.filesToOverwrite.joined(separator: "\n")))
+            Text(String(localized: "overwrite.message", bundle: LanguageManager.shared.bundle).replacingOccurrences(of: "%@", with: appState.filesToOverwrite.joined(separator: "\n")))
         }
     }
 
@@ -196,7 +294,7 @@ struct MainView: View {
                     .foregroundColor(ThemeColors.textPrimary)
 
                 // 副标题
-                Text("app.subtitle", bundle: .main)
+                Text(LanguageManager.shared.localized("app.subtitle"))
                     .font(.system(size: 13, weight: .light))
                     .foregroundColor(ThemeColors.textSecondary)
             }
@@ -214,10 +312,10 @@ struct MainView: View {
 
             // 底部提示 - 两行
             VStack(spacing: 4) {
-                Text("app.dropHint1", bundle: .main)
+                Text(LanguageManager.shared.localized("app.dropHint1"))
                     .font(.system(size: 13, weight: .regular))
                     .foregroundColor(ThemeColors.textPrimary)
-                Text("app.dropHint2", bundle: .main)
+                Text(LanguageManager.shared.localized("app.dropHint2"))
                     .font(.system(size: 13, weight: .regular))
                     .foregroundColor(ThemeColors.textPrimary)
             }
@@ -258,6 +356,7 @@ struct MainView: View {
 
                 Spacer()
 
+                LanguageToggleButton()
                 ThemeToggleButton()
                 SettingsToggleButton(isExpanded: $isSettingsExpanded)
             }
@@ -279,7 +378,7 @@ struct MainView: View {
             if isSettingsExpanded {
                 // 设置标题
                 HStack {
-                    Text("settings.title", bundle: .main)
+                    Text(LanguageManager.shared.localized("settings.title"))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(ThemeColors.textMuted)
                     Spacer()
@@ -292,10 +391,12 @@ struct MainView: View {
                     // 模式切换
                     HStack(spacing: 0) {
                         Button(action: { appState.settings.qualityFirst = true }) {
-                            Text("settings.qualityFirst", bundle: .main)
+                            Text(LanguageManager.shared.localized("settings.qualityFirst"))
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(appState.settings.qualityFirst ? ThemeColors.accent : ThemeColors.textMuted)
-                                .padding(.horizontal, 12)
+                                .foregroundColor(appState.settings.qualityFirst ? ThemeColors.pickerAccent : ThemeColors.textMuted)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                                .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
                         }
                         .buttonStyle(.plain)
@@ -306,14 +407,17 @@ struct MainView: View {
                             .frame(width: 1, height: 16)
 
                         Button(action: { appState.settings.qualityFirst = false }) {
-                            Text("settings.sizeLimit", bundle: .main)
+                            Text(LanguageManager.shared.localized("settings.sizeLimit"))
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(appState.settings.qualityFirst ? ThemeColors.textMuted : ThemeColors.accent)
-                                .padding(.horizontal, 12)
+                                .foregroundColor(appState.settings.qualityFirst ? ThemeColors.textMuted : ThemeColors.pickerAccent)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                                .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
                         }
                         .buttonStyle(.plain)
                     }
+                    .fixedSize(horizontal: true, vertical: false)
                     .background(ThemeColors.backgroundSecondary)
                     .cornerRadius(6)
                     .overlay(
@@ -325,41 +429,43 @@ struct MainView: View {
 
                     if appState.settings.qualityFirst {
                         // 质量优先模式 - 显示 DPI 设置
-                        ThemedSlider(
+                        ThemedNSSlider(
                             value: Binding(
                                 get: { Double(appState.settings.maxDPI) },
                                 set: { appState.settings.maxDPI = Int($0) }
                             ),
-                            range: 150...1200,
-                            step: 50
+                            range: 150...1200
                         )
-                        .frame(width: 50, height: 16)
+                        .frame(width: 80, height: 16)
 
-                        HStack(spacing: 3) {
+                        HStack(spacing: 4) {
                             ThemedNumberField(value: $appState.settings.maxDPI, width: 42)
                                 .frame(width: 42, height: 22)
 
                             Text("DPI")
                                 .font(.system(size: 10))
                                 .foregroundColor(ThemeColors.textMuted)
+                                .fixedSize(horizontal: true, vertical: false)
                         }
+                        .fixedSize(horizontal: true, vertical: false)
                     } else {
                         // 大小限制模式 - 显示文件大小设置
-                        ThemedSlider(
+                        ThemedNSSlider(
                             value: $appState.settings.maxSizeMB,
-                            range: 1...50,
-                            step: 1
+                            range: 1...50
                         )
-                        .frame(width: 50, height: 16)
+                        .frame(width: 80, height: 16)
 
-                        HStack(spacing: 3) {
-                            ThemedDoubleField(value: $appState.settings.maxSizeMB, width: 36)
-                                .frame(width: 36, height: 22)
+                        HStack(spacing: 4) {
+                            ThemedDoubleField(value: $appState.settings.maxSizeMB, width: 42)
+                                .frame(width: 42, height: 22)
 
                             Text("MB")
                                 .font(.system(size: 10))
                                 .foregroundColor(ThemeColors.textMuted)
+                                .fixedSize(horizontal: true, vertical: false)
                         }
+                        .fixedSize(horizontal: true, vertical: false)
                     }
                 }
                 .padding(.horizontal, 15)
@@ -386,19 +492,27 @@ struct MainView: View {
         }
     }
 
+    /// 是否有已完成的任务（不在转换中）
+    private var hasCompletedTasks: Bool {
+        !appState.isConverting && appState.tasks.contains { task in
+            if case .completed = task.status { return true }
+            return false
+        }
+    }
+
     /// 是否可以开始转换
     private var canStartConversion: Bool {
-        !appState.pendingFiles.isEmpty || hasFailedTasks
+        !appState.pendingFiles.isEmpty || hasFailedTasks || hasCompletedTasks
     }
 
     /// 转换按钮标题
-    private var convertButtonTitle: LocalizedStringKey {
+    private var convertButtonTitle: String {
         if !appState.pendingFiles.isEmpty {
-            return "button.startConvert"
-        } else if hasFailedTasks {
-            return "button.restart"
+            return String(localized: "button.startConvert", bundle: LanguageManager.shared.bundle)
+        } else if hasFailedTasks || hasCompletedTasks {
+            return String(localized: "button.restart", bundle: LanguageManager.shared.bundle)
         }
-        return "button.startConvert"
+        return String(localized: "button.startConvert", bundle: LanguageManager.shared.bundle)
     }
 
     /// 重新开始失败的任务
@@ -430,7 +544,7 @@ struct MainView: View {
         VStack(spacing: 0) {
             // 文件列表标题
             HStack {
-                Text("fileList.title", bundle: .main)
+                Text(LanguageManager.shared.localized("fileList.title"))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(ThemeColors.textMuted)
                 Spacer()
@@ -479,7 +593,7 @@ struct MainView: View {
         HStack(spacing: 8) {
             // 添加按钮
             Button(action: { appState.showFilePicker = true }) {
-                Text("button.add", bundle: .main)
+                Text(LanguageManager.shared.localized("button.add"))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(ThemeColors.textSecondary)
                     .frame(width: 56, height: 28)
@@ -494,7 +608,7 @@ struct MainView: View {
 
             // 清空按钮
             Button(action: { appState.clearFiles() }) {
-                Text("button.clear", bundle: .main)
+                Text(LanguageManager.shared.localized("button.clear"))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(ThemeColors.textSecondary)
                     .frame(width: 56, height: 28)
@@ -512,7 +626,7 @@ struct MainView: View {
             if appState.isConverting {
                 // 取消按钮
                 Button(action: { appState.cancelConversion() }) {
-                    Text("button.cancel", bundle: .main)
+                    Text(LanguageManager.shared.localized("button.cancel"))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(ThemeColors.textSecondary)
                         .frame(width: 56, height: 28)
@@ -532,6 +646,9 @@ struct MainView: View {
                     } else if hasFailedTasks {
                         // 重新开始：将失败的任务移回待转换列表
                         restartFailedTasks()
+                    } else if hasCompletedTasks {
+                        // 所有任务完成后：清空任务列表，准备新的转换
+                        appState.tasks.removeAll()
                     }
                 }) {
                     Text(convertButtonTitle)
@@ -684,7 +801,7 @@ struct ThemeToggleButton: View {
             .onHover { hovering in
                 isHovering = hovering
             }
-            .help(themeManager.isDarkMode ? String(localized: "theme.switchToLight") : String(localized: "theme.switchToDark"))
+            .help(themeManager.isDarkMode ? String(localized: "theme.switchToLight", bundle: LanguageManager.shared.bundle) : String(localized: "theme.switchToDark", bundle: LanguageManager.shared.bundle))
     }
 }
 
@@ -709,7 +826,30 @@ struct SettingsToggleButton: View {
             .onHover { hovering in
                 isHovering = hovering
             }
-            .help(isExpanded ? String(localized: "theme.collapse") : String(localized: "theme.expand"))
+            .help(isExpanded ? String(localized: "theme.collapse", bundle: LanguageManager.shared.bundle) : String(localized: "theme.expand", bundle: LanguageManager.shared.bundle))
+    }
+}
+
+// MARK: - Language Toggle Button
+
+struct LanguageToggleButton: View {
+    @ObservedObject private var languageManager = LanguageManager.shared
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: {
+            languageManager.toggleLanguage()
+        }) {
+            Image(systemName: "globe")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(isHovering ? ThemeColors.accent : ThemeColors.textSecondary)
+                .frame(width: 20, height: 20)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovering = hovering
+        }
+        .help(languageManager.isChinese ? languageManager.localized("language.switchToEnglish") : languageManager.localized("language.switchToChinese"))
     }
 }
 
@@ -785,9 +925,9 @@ struct FileItemView: View {
         guard let status = status else { return ThemeColors.textSecondary }
         switch status {
         case .pending: return ThemeColors.textSecondary
-        case .converting: return ThemeColors.accent
-        case .completed: return ThemeColors.success
-        case .failed: return ThemeColors.error
+        case .converting: return ThemeColors.statusTextProgress
+        case .completed: return ThemeColors.statusTextSuccess
+        case .failed: return ThemeColors.statusTextError
         }
     }
 
@@ -966,7 +1106,63 @@ struct ThemedDoubleField: NSViewRepresentable {
     }
 }
 
-// MARK: - Themed Slider
+// MARK: - Themed NS Slider (Consistent Style)
+
+struct ThemedNSSlider: NSViewRepresentable {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    @ObservedObject private var themeManager = ThemeManager.shared
+
+    func makeNSView(context: Context) -> NSSlider {
+        let slider = NSSlider()
+        slider.minValue = range.lowerBound
+        slider.maxValue = range.upperBound
+        slider.doubleValue = value
+        slider.target = context.coordinator
+        slider.action = #selector(Coordinator.valueChanged(_:))
+        slider.controlSize = .small
+        slider.sliderType = .linear
+        slider.isContinuous = true
+        slider.numberOfTickMarks = 0
+        slider.allowsTickMarkValuesOnly = false
+
+        // 设置外观以适应深色/浅色模式
+        updateSliderAppearance(slider)
+        return slider
+    }
+
+    func updateNSView(_ nsView: NSSlider, context: Context) {
+        nsView.doubleValue = value
+        updateSliderAppearance(nsView)
+    }
+
+    private func updateSliderAppearance(_ slider: NSSlider) {
+        // 根据主题设置外观
+        if themeManager.isDarkMode {
+            slider.appearance = NSAppearance(named: .darkAqua)
+        } else {
+            slider.appearance = NSAppearance(named: .aqua)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject {
+        var parent: ThemedNSSlider
+
+        init(_ parent: ThemedNSSlider) {
+            self.parent = parent
+        }
+
+        @objc func valueChanged(_ sender: NSSlider) {
+            parent.value = sender.doubleValue
+        }
+    }
+}
+
+// MARK: - Themed Slider (SwiftUI - kept for compatibility)
 
 struct ThemedSlider: View {
     @Binding var value: Double

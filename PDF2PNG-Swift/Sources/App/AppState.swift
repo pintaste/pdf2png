@@ -87,8 +87,8 @@ class AppState: ObservableObject {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = String(localized: "output.selectFolder")
-        panel.message = String(localized: "output.message")
+        panel.prompt = String(localized: "output.selectFolder", bundle: .module)
+        panel.message = String(localized: "output.message", bundle: .module)
 
         // 默认定位到第一个输入文件的目录
         if let firstFile = pendingFiles.first {
@@ -136,7 +136,7 @@ class AppState: ObservableObject {
             // 检查多页文件夹
             let multiPageDir = outputDir.appendingPathComponent(baseName)
             if fileManager.fileExists(atPath: multiPageDir.path) {
-                existingFiles.append("\(baseName)/ (文件夹)")
+                existingFiles.append("\(baseName)/ (\(String(localized: "file.folder", bundle: .module)))")
             }
         }
 
@@ -269,7 +269,7 @@ class AppState: ObservableObject {
         for i in tasks.indices {
             switch tasks[i].status {
             case .converting, .pending:
-                tasks[i].status = .failed(error: "已取消")
+                tasks[i].status = .failed(error: String(localized: "status.cancelled", bundle: .module))
             default:
                 break
             }

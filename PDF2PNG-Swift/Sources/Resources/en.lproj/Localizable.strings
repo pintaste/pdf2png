@@ -62,6 +62,10 @@
 "theme.expand" = "Expand Settings";
 "theme.collapse" = "Collapse Settings";
 
+/* Language */
+"language.switchToEnglish" = "Switch to English";
+"language.switchToChinese" = "Switch to Chinese";
+
 /* Conversion Result */
 "result.pages" = "%d pages";
 "result.dpi" = "%d DPI";
@@ -78,3 +82,59 @@
 "error.cannotCreateContext" = "Cannot create graphics context";
 "error.cannotGenerateImage" = "Cannot generate image";
 "error.cannotGeneratePNG" = "Cannot generate PNG data";
+
+/* App Errors */
+"appError.fileNotFound" = "File not found: %@";
+"appError.invalidFileType" = "Unsupported file type: %@";
+"appError.fileReadError" = "Failed to read file: %@";
+"appError.fileWriteError" = "Failed to write file: %@";
+"appError.pdfRenderFailed" = "PDF render failed: %@";
+"appError.pdfPageNotFound" = "Page %d not found";
+"appError.conversionFailed" = "Conversion failed: %@";
+"appError.noWritePermission" = "No write permission: %@";
+"appError.invalidSettings" = "Invalid settings: %@";
+
+/* App Error Short */
+"appError.short.fileNotFound" = "File not found";
+"appError.short.invalidFileType" = "Unsupported type";
+"appError.short.fileReadError" = "Read failed";
+"appError.short.fileWriteError" = "Write failed";
+"appError.short.invalidPDF" = "Invalid PDF";
+"appError.short.pdfRenderFailed" = "Render failed";
+"appError.short.pdfPageNotFound" = "Page not found";
+"appError.short.conversionCancelled" = "Cancelled";
+"appError.short.conversionFailed" = "Conversion failed";
+"appError.short.noWritePermission" = "Permission denied";
+"appError.short.invalidSettings" = "Invalid settings";
+
+/* File */
+"file.folder" = "folder";
+
+/* Settings View */
+"settingsView.outputSettings" = "Output Settings";
+"settingsView.useCustomOutput" = "Use custom output directory";
+"settingsView.outputDirectory" = "Output directory";
+"settingsView.selectDirectory" = "Select...";
+"settingsView.outputToSource" = "Output to source file directory";
+"settingsView.qualitySettings" = "Quality Settings";
+"settingsView.outputMode" = "Output mode";
+"settingsView.maxFileSize" = "Max file size";
+"settingsView.maxDPI" = "Max DPI";
+"settingsView.minDPI" = "Min DPI";
+"settingsView.presets" = "Quick Presets";
+"settingsView.standard" = "Standard";
+"settingsView.hd" = "HD";
+"settingsView.ultra" = "Ultra";
+"settingsView.about" = "About";
+"settingsView.nativeVersion" = "PDF2PNG Swift Native";
+"settingsView.githubRepo" = "GitHub Repository";
+
+/* Preset Display Names */
+"preset.dpi.standard" = "Standard (600 DPI)";
+"preset.dpi.high" = "HD (1200 DPI)";
+"preset.dpi.ultra" = "Ultra HD (2400 DPI)";
+"preset.dpi.custom" = "Custom";
+"preset.size.small" = "Small (2 MB)";
+"preset.size.medium" = "Medium (5 MB)";
+"preset.size.large" = "Large (10 MB)";
+"preset.size.unlimited" = "Unlimited";
