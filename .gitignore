@@ -1,30 +1,7 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual Environment
-venv/
-ENV/
-env/
-.venv/
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
 
 # IDE
 .idea/
@@ -33,20 +10,22 @@ env/
 *.swo
 *~
 
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
+# Swift Build
+.build/
+.swiftpm/
+*.xcodeproj
+*.xcworkspace
+DerivedData/
 
-# PyInstaller
-*.manifest
-*.spec.bak
+# SPM
+Package.resolved
 
-# Project specific
-.serena/
+# Test Files
 *.png
 *.pdf
 
-# Keep these
-!requirements*.txt
-!*.spec
+# Serena AI Tool
+.serena/
+
+# Spec Workflow Tool
+.spec-workflow/
