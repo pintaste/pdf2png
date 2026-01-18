@@ -5,6 +5,9 @@
 ![Swift](https://img.shields.io/badge/Swift-5.9+-orange.svg)
 ![Platform](https://img.shields.io/badge/Platform-macOS%2013.0+-lightgrey.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![GitHub release](https://img.shields.io/github/v/release/pintaste/pdf2png)
+![GitHub Downloads](https://img.shields.io/github/downloads/pintaste/pdf2png/total)
+![GitHub Stars](https://img.shields.io/github/stars/pintaste/pdf2png)
 
 ## ✨ 特性
 
@@ -16,6 +19,16 @@
 - **🌓 深色模式** - 完整支持 macOS 深色/浅色主题
 - **🌍 双语界面** - 中文 / English 运行时切换
 - **📦 轻量级** - 应用大小仅 ~250KB，无需 Python 环境
+
+## 🚀 快速开始
+
+### 三步完成转换
+
+1. **下载** - 从 [Releases](https://github.com/pintaste/pdf2png/releases/latest) 下载 `PDF2PNG-Swift-macOS.zip`
+2. **安装** - 解压并移动到应用程序文件夹
+3. **使用** - 拖放 PDF 文件到应用，点击"开始转换"
+
+就是这么简单！
 
 ## 📥 安装
 
