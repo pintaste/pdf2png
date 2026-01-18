@@ -1,148 +1,153 @@
 # PDF2PNG
 
-高清 PDF 转 PNG 转换工具，支持批量处理和智能质量控制。
+高清 PDF 转 PNG 转换工具 - Swift 原生 macOS 应用
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![PyQt6](https://img.shields.io/badge/GUI-PyQt6-green.svg)
-![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)
+![Swift](https://img.shields.io/badge/Swift-5.9+-orange.svg)
+![Platform](https://img.shields.io/badge/Platform-macOS%2013.0+-lightgrey.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-## 特性
+## ✨ 特性
 
-- **高清输出** - DPI 范围 150-1200，支持专业级打印质量
-- **智能压缩** - 自动调整 DPI 满足文件大小限制
-- **批量处理** - 多文件并行转换，进度实时显示
-- **双模式** - 质量优先 / 大小优先，按需切换
-- **现代界面** - PyQt6 深色主题，简洁优雅
-- **跨平台** - macOS / Linux / Windows 全支持
+- **🎯 原生体验** - Swift + SwiftUI 构建，完美融入 macOS 生态
+- **📐 高清输出** - DPI 范围 18-2400，支持专业级打印质量
+- **🤖 智能算法** - 五步 DPI 优化算法，自动满足文件大小要求
+- **⚡ 批量处理** - 多文件并行转换，实时进度显示
+- **🎨 双模式** - 质量优先 / 大小限制，按需切换
+- **🌓 深色模式** - 完整支持 macOS 深色/浅色主题
+- **🌍 双语界面** - 中文 / English 运行时切换
+- **📦 轻量级** - 应用大小仅 ~250KB，无需 Python 环境
 
-## 安装
+## 📥 安装
 
-### 依赖安装
+### 方法 1: 下载预编译应用（推荐）
 
-```bash
-pip install PyMuPDF PyQt6
-```
-
-或使用安装脚本：
+从 [Releases](https://github.com/pintaste/pdf2png/releases) 下载最新的 `PDF2PNG-Swift-macOS.zip`：
 
 ```bash
-# macOS / Linux
-./install-deps.sh
-
-# Windows
-install-deps.bat
+unzip PDF2PNG-Swift-macOS.zip
+mv PDF2PNG.app /Applications/
 ```
 
-### 下载预编译版本
+### 方法 2: 从源码构建
 
-从 [Releases](../../releases) 下载对应平台的预编译版本，无需安装 Python。
+**系统要求：**
+- macOS 13.0+
+- Xcode 15.0+ 或 Swift 5.9+
 
-## 使用方法
-
-### GUI 图形界面
+**构建步骤：**
 
 ```bash
-python pdf2png-gui.py
+cd PDF2PNG-Swift
+swift build -c release
 ```
 
-**操作步骤：**
-1. 拖放 PDF 文件到窗口，或点击「添加」按钮
-2. 选择转换模式：质量优先 / 大小优先
-3. 调整 DPI 设置（150-1200）
-4. 点击「开始转换」
+**打包为 .app：**
 
-### 命令行
+参考 `PDF2PNG-Swift/README.md` 中的详细说明。
+
+## 🚀 使用方法
+
+### 拖放转换
+
+1. 启动 PDF2PNG.app
+2. 将 PDF 文件拖放到黄色区域
+3. 选择转换模式（质量优先 / 大小限制）
+4. 调整 DPI 设置
+5. 点击「开始转换」
+
+### 转换模式
+
+**质量优先模式**
+- 使用最高 DPI 渲染
+- 忽略文件大小限制
+- 适合专业印刷
+
+**大小限制模式**
+- 智能调整 DPI 满足文件大小要求
+- 五步优化算法：初始尝试 → 渐进降低 → 二分精调 → 向上逼近 → 强制验证
+- 默认限制：5 MB（可调整 2-50 MB）
+
+## 🎛️ DPI 参考
+
+| DPI | 用途 | 推荐场景 |
+|-----|------|---------|
+| 150 | 快速预览 | 屏幕查看 |
+| 300 | 标准打印 | 普通文档 |
+| 600 | 高质量打印 | 商业印刷 |
+| 1200 | 专业印刷 | 出版物 |
+| 2400 | 极限质量 | 特殊需求 |
+
+## 📁 项目结构
+
+```
+PDF2PNG-Swift/
+├── Sources/
+│   ├── App/
+│   │   ├── PDF2PNGApp.swift      # 应用入口
+│   │   └── AppState.swift        # 全局状态管理
+│   ├── Core/
+│   │   └── PDFConverter.swift    # PDF 转换核心（五步 DPI 算法）
+│   ├── Models/
+│   │   ├── ConversionTask.swift  # 任务模型
+│   │   ├── ConversionSettings.swift # 转换设置
+│   │   └── AppError.swift        # 错误定义
+│   ├── Views/
+│   │   ├── MainView.swift        # 主界面（拖放、文件列表、控制）
+│   │   └── SettingsView.swift    # 设置界面
+│   └── Resources/
+│       ├── en.lproj/Localizable.strings      # 英文本地化
+│       └── zh-Hans.lproj/Localizable.strings # 中文本地化
+├── Package.swift                 # SPM 包配置
+├── Info.plist                    # 应用配置
+└── README.md                     # Swift 版本文档
+```
+
+## ⚙️ 核心技术
+
+- **Swift** - 类型安全的现代语言
+- **SwiftUI** - 声明式 UI 框架
+- **PDFKit** - macOS 原生 PDF 渲染
+- **Concurrency** - Actor 并发模型
+- **SPM** - Swift Package Manager
+
+## 🔧 开发
+
+### 运行测试
 
 ```bash
-# 基本转换
-python pdf2png.py input.pdf
-
-# 高质量模式
-python pdf2png.py input.pdf -q --max-dpi 1200
-
-# 限制文件大小
-python pdf2png.py input.pdf -s 5  # 5MB 限制
-
-# 批量转换
-python pdf2png.py "*.pdf" -b -d output/
+cd PDF2PNG-Swift
+swift test
 ```
 
-### 交互模式
+### 构建 Release 版本
 
 ```bash
-python pdf2png.py -i
+swift build -c release
 ```
 
-## 命令行参数
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `input` | 输入 PDF 文件（支持通配符） | - |
-| `-o, --output` | 输出文件路径 | 同名.png |
-| `-s, --max-size` | 最大文件大小 (MB) | 5 |
-| `-q, --quality-first` | 质量优先模式 | 关闭 |
-| `--min-dpi` | 最低 DPI | 150 |
-| `--max-dpi` | 最高 DPI | 600 |
-| `-b, --batch` | 批量模式 | 关闭 |
-| `-d, --output-dir` | 输出目录 | 原目录 |
-| `-i, --interactive` | 交互模式 | 关闭 |
-
-## DPI 参考
-
-| DPI | 用途 | 文件大小 |
-|-----|------|----------|
-| 150 | 快速预览 | 小 |
-| 300 | 屏幕显示 | 中 |
-| 600 | 标准打印 | 大 |
-| 1200 | 专业印刷 | 很大 |
-
-## 项目结构
-
-```
-pdf2png/
-├── pdf2png-gui.py      # GUI 入口
-├── pdf2png.py          # CLI 入口
-├── converter.py        # 核心转换引擎
-├── config.py           # 配置管理
-├── constants.py        # 常量定义
-├── cli/                # 命令行模块
-│   ├── commands.py     # 命令处理
-│   └── interactive.py  # 交互模式
-└── gui_pyqt/           # PyQt6 GUI
-    ├── main_window.py  # 主窗口
-    ├── theme.py        # 主题系统
-    ├── i18n.py         # 国际化
-    ├── widgets/        # UI 组件
-    └── utils/          # 工具函数
-```
-
-## 构建独立应用
+### 生成 Xcode 项目
 
 ```bash
-# 安装 PyInstaller
-pip install pyinstaller
-
-# 构建
-pyinstaller build-optimized.spec
-
-# 输出位置
-# macOS: dist/PDF2PNG.app
-# Linux: dist/PDF2PNG
-# Windows: dist/PDF2PNG.exe
+swift package generate-xcodeproj
 ```
 
-## 系统要求
+## 📄 许可证
 
-- Python 3.8+
-- PyMuPDF
-- PyQt6
+MIT License - 详见 [LICENSE](LICENSE)
 
-## 许可证
+## 🙏 致谢
 
-MIT License
+- [PDFKit](https://developer.apple.com/documentation/pdfkit) - macOS 原生 PDF 框架
+- [Swift](https://swift.org/) - Apple 开源编程语言
 
-## 致谢
+---
 
-- [PyMuPDF](https://pymupdf.readthedocs.io/) - PDF 渲染引擎
-- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) - GUI 框架
+## 🗂️ 版本历史
+
+**最新版本：v4.2.0** (2025-12-27)
+- ✅ 修复大小限制算法和 DPI 范围显示
+- ✅ 支持中英文双语
+- ✅ 支持深色模式
+- ✅ 完整迁移到 Swift 原生实现
+
+查看完整 [Changelog](PDF2PNG-Swift/README.md)
