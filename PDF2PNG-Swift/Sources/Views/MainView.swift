@@ -57,7 +57,7 @@ class LanguageManager: ObservableObject {
     }
 
     /// 当前语言的 Bundle
-    @Published private(set) var bundle: Bundle = .module
+    @Published private(set) var bundle: Bundle = .main
 
     /// 刷新标识符 - 用于强制刷新视图
     @Published var refreshID = UUID()
@@ -99,16 +99,41 @@ class LanguageManager: ObservableObject {
     private func updateBundle() {
         // SPM 编译后目录名可能是小写，尝试多种格式
         let possibleCodes = isChinese ? ["zh-Hans", "zh-hans", "zh"] : ["en"]
+
+        // 1. 优先尝试从 Bundle.main 加载（打包后的应用）
+        for langCode in possibleCodes {
+            // 尝试直接从 main bundle 加载
+            if let path = Bundle.main.path(forResource: langCode, ofType: "lproj"),
+               let langBundle = Bundle(path: path) {
+                bundle = langBundle
+                print("[LanguageManager] Loaded from main bundle: \(langCode).lproj")
+                return
+            }
+
+            // 尝试从 main bundle 中的 SPM resource bundle 加载
+            if let bundlePath = Bundle.main.path(forResource: "PDF2PNG_PDF2PNG", ofType: "bundle"),
+               let resourceBundle = Bundle(path: bundlePath),
+               let path = resourceBundle.path(forResource: langCode, ofType: "lproj"),
+               let langBundle = Bundle(path: path) {
+                bundle = langBundle
+                print("[LanguageManager] Loaded from resource bundle: \(langCode).lproj")
+                return
+            }
+        }
+
+        // 2. 开发时回退到 Bundle.module
         for langCode in possibleCodes {
             if let path = Bundle.module.path(forResource: langCode, ofType: "lproj"),
                let langBundle = Bundle(path: path) {
                 bundle = langBundle
-                print("[LanguageManager] Loaded bundle: \(langCode).lproj")
+                print("[LanguageManager] Loaded from module bundle: \(langCode).lproj")
                 return
             }
         }
-        bundle = .module
-        print("[LanguageManager] Fallback to module bundle")
+
+        // 3. 最终回退到 main bundle
+        bundle = .main
+        print("[LanguageManager] Fallback to main bundle")
     }
 
     /// 语言显示名称
