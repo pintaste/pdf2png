@@ -21,12 +21,13 @@ final class PDFConverterTests: XCTestCase {
         let pending = TaskStatus.pending
         XCTAssertEqual(pending.progress, 0)
 
-        let converting = TaskStatus.converting(progress: 0.5)
+        let converting = TaskStatus.converting(progress: 0.5, currentPage: 5, totalPages: 10)
         XCTAssertEqual(converting.progress, 0.5)
 
         let completed = TaskStatus.completed(result: PDFConverter.ConversionResult(
             outputURLs: [],
-            actualDPI: 600,
+            minDPI: 600,
+            maxDPI: 600,
             totalSizeBytes: 1000,
             renderTimeMs: 100
         ))

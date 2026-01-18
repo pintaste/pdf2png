@@ -186,67 +186,198 @@ actor PDFConverter {
     ) async throws -> (Data, Int) {
         // 在后台线程执行渲染以避免阻塞
         return try await Task.detached(priority: .userInitiated) { [self] in
-            let maxSizeBytes = Int(settings.maxSizeMB * 1024 * 1024)
-
-            // 质量优先模式
             if settings.qualityFirst {
-                let data = try self.renderPage(page: page, dpi: settings.maxDPI)
-                return (data, settings.maxDPI)
+                return try self.renderWithQuality(page: page, dpi: settings.maxDPI)
+            } else {
+                return try self.renderWithSizeLimit(page: page, settings: settings)
             }
+        }.value
+    }
 
-            // 大小限制模式
-            var resultData = try self.renderPage(page: page, dpi: settings.maxDPI)
-            var currentDPI = settings.maxDPI
+    // MARK: - Quality-First Mode
 
-            // 如果最高 DPI 满足要求
-            if resultData.count <= maxSizeBytes {
-                return (resultData, currentDPI)
+    /// 质量优先模式：使用最高 DPI 渲染
+    private nonisolated func renderWithQuality(page: PDFPage, dpi: Int) throws -> (Data, Int) {
+        let data = try renderPage(page: page, dpi: dpi)
+        return (data, dpi)
+    }
+
+    // MARK: - Size-Limit Mode (5-Step Algorithm)
+
+    /// 大小限制模式：智能 DPI 优化算法
+    private nonisolated func renderWithSizeLimit(
+        page: PDFPage,
+        settings: ConversionSettings
+    ) throws -> (Data, Int) {
+        let maxSizeBytes = Int(settings.maxSizeMB * 1024 * 1024)
+
+        // Step 1: 尝试最高 DPI
+        var resultData = try renderPage(page: page, dpi: settings.maxDPI)
+        var currentDPI = settings.maxDPI
+
+        if resultData.count <= maxSizeBytes {
+            return (resultData, currentDPI)
+        }
+
+        // Step 2: 渐进式降低 DPI
+        (resultData, currentDPI) = try progressiveReduction(
+            page: page,
+            startDPI: currentDPI,
+            minDPI: settings.minDPI,
+            maxSizeBytes: maxSizeBytes,
+            initialData: resultData
+        )
+
+        // Step 3: 二分法精调
+        if resultData.count > maxSizeBytes && currentDPI > settings.minDPI {
+            (resultData, currentDPI) = try binarySearchOptimize(
+                page: page,
+                lowDPI: settings.minDPI,
+                highDPI: currentDPI,
+                maxSizeBytes: maxSizeBytes
+            )
+        }
+
+        // Step 4: 向上逼近（如果文件太小）
+        if resultData.count < Int(Double(maxSizeBytes) * 0.9) && currentDPI < settings.maxDPI {
+            (resultData, currentDPI) = try upwardApproach(
+                page: page,
+                currentDPI: currentDPI,
+                maxDPI: settings.maxDPI,
+                maxSizeBytes: maxSizeBytes,
+                currentData: resultData
+            )
+        }
+
+        // Step 5: 最终强制验证（绝不超限）
+        if resultData.count > maxSizeBytes {
+            (resultData, currentDPI) = try emergencyFallback(
+                page: page,
+                minDPI: settings.minDPI,
+                maxSizeBytes: maxSizeBytes
+            )
+        }
+
+        return (resultData, currentDPI)
+    }
+
+    /// Step 2: 渐进式降低 DPI (Progressive Reduction)
+    private nonisolated func progressiveReduction(
+        page: PDFPage,
+        startDPI: Int,
+        minDPI: Int,
+        maxSizeBytes: Int,
+        initialData: Data
+    ) throws -> (Data, Int) {
+        var resultData = initialData
+        var currentDPI = startDPI
+        var safety = 0.95
+
+        for _ in 0..<3 {
+            guard resultData.count > maxSizeBytes else { break }
+
+            let ratio = Double(maxSizeBytes) / Double(resultData.count)
+            currentDPI = max(minDPI, Int(Double(currentDPI) * sqrt(ratio) * safety))
+
+            resultData = try renderPage(page: page, dpi: currentDPI)
+            safety *= 0.95
+        }
+
+        return (resultData, currentDPI)
+    }
+
+    /// Step 3: 二分法精调 (Binary Search Optimization)
+    private nonisolated func binarySearchOptimize(
+        page: PDFPage,
+        lowDPI: Int,
+        highDPI: Int,
+        maxSizeBytes: Int
+    ) throws -> (Data, Int) {
+        var low = lowDPI
+        var high = highDPI
+        var resultData = try renderPage(page: page, dpi: low)
+        var currentDPI = low
+
+        while high - low > 5 {
+            let midDPI = (low + high) / 2
+            let midData = try renderPage(page: page, dpi: midDPI)
+
+            if midData.count <= maxSizeBytes {
+                low = midDPI
+                resultData = midData
+                currentDPI = midDPI
+            } else {
+                high = midDPI
             }
+        }
 
-            // 渐进式降低 DPI
-            var safety = 0.95
-            for _ in 0..<3 {
-                let ratio = Double(maxSizeBytes) / Double(resultData.count)
-                currentDPI = max(settings.minDPI, Int(Double(currentDPI) * sqrt(ratio) * safety))
+        return (resultData, currentDPI)
+    }
 
-                resultData = try self.renderPage(page: page, dpi: currentDPI)
+    /// Step 4: 向上逼近 (Upward Approach)
+    private nonisolated func upwardApproach(
+        page: PDFPage,
+        currentDPI: Int,
+        maxDPI: Int,
+        maxSizeBytes: Int,
+        currentData: Data
+    ) throws -> (Data, Int) {
+        var bestData = currentData
+        var bestDPI = currentDPI
 
-                if resultData.count <= maxSizeBytes {
-                    break
-                }
-                safety *= 0.95
+        var lowDPI = currentDPI
+        var highDPI = min(Int(Double(currentDPI) * 1.15), maxDPI)
+
+        while highDPI - lowDPI > 15 {  // 放宽精度到 15 DPI
+            let midDPI = (lowDPI + highDPI) / 2
+            let midData = try renderPage(page: page, dpi: midDPI)
+
+            if midData.count <= maxSizeBytes {
+                lowDPI = midDPI
+                bestData = midData
+                bestDPI = midDPI
+            } else {
+                highDPI = midDPI
             }
+        }
 
-            // 二分法精调
-            if resultData.count > maxSizeBytes && currentDPI > settings.minDPI {
-                var lowDPI = settings.minDPI
-                var highDPI = currentDPI
+        return (bestData, bestDPI)
+    }
 
-                while highDPI - lowDPI > 5 {
+    /// Step 5: 应急降档 (Emergency Fallback)
+    private nonisolated func emergencyFallback(
+        page: PDFPage,
+        minDPI: Int,
+        maxSizeBytes: Int
+    ) throws -> (Data, Int) {
+        let absoluteMinDPI = 18  // 绝对最低 DPI（再低则图像不可用）
+
+        // 先尝试用户设置的 minDPI
+        var resultData = try renderPage(page: page, dpi: minDPI)
+        var currentDPI = minDPI
+
+        // 如果仍超限，持续降低到绝对下限
+        var emergencyDPI = minDPI
+        while resultData.count > maxSizeBytes && emergencyDPI > absoluteMinDPI {
+            emergencyDPI = max(absoluteMinDPI, Int(Double(emergencyDPI) * 0.8))
+            resultData = try renderPage(page: page, dpi: emergencyDPI)
+            currentDPI = emergencyDPI
+        }
+
+        // 如果 absoluteMinDPI 仍超限，使用二分法精确查找
+        if resultData.count > maxSizeBytes {
+            let minData = try renderPage(page: page, dpi: absoluteMinDPI)
+
+            if minData.count <= maxSizeBytes {
+                // 二分法找到最大可用 DPI
+                var lowDPI = absoluteMinDPI
+                var highDPI = emergencyDPI
+                var bestData = minData
+                var bestDPI = absoluteMinDPI
+
+                while highDPI - lowDPI > 2 {
                     let midDPI = (lowDPI + highDPI) / 2
-                    let midData = try self.renderPage(page: page, dpi: midDPI)
-
-                    if midData.count <= maxSizeBytes {
-                        lowDPI = midDPI
-                        resultData = midData
-                        currentDPI = midDPI
-                    } else {
-                        highDPI = midDPI
-                    }
-                }
-            }
-
-            // 向上逼近（如果文件太小）
-            if resultData.count < Int(Double(maxSizeBytes) * 0.9) && currentDPI < settings.maxDPI {
-                var bestData = resultData
-                var bestDPI = currentDPI
-
-                var lowDPI = currentDPI
-                var highDPI = min(Int(Double(currentDPI) * 1.15), settings.maxDPI)
-
-                while highDPI - lowDPI > 15 {  // 放宽精度到 15 DPI
-                    let midDPI = (lowDPI + highDPI) / 2
-                    let midData = try self.renderPage(page: page, dpi: midDPI)
+                    let midData = try renderPage(page: page, dpi: midDPI)
 
                     if midData.count <= maxSizeBytes {
                         lowDPI = midDPI
@@ -260,61 +391,10 @@ actor PDFConverter {
                 resultData = bestData
                 currentDPI = bestDPI
             }
+            // 如果即使 absoluteMinDPI 也超限，保持当前结果（已是最佳努力）
+        }
 
-            // 第五步：最终强制验证（绝不超限）
-            var finalSize = resultData.count
-            if finalSize > maxSizeBytes {
-                // 强制使用 min_dpi
-                resultData = try self.renderPage(page: page, dpi: settings.minDPI)
-                currentDPI = settings.minDPI
-                finalSize = resultData.count
-
-                // 应急降档（持续降低直到满足限制或达到绝对下限）
-                var emergencyDPI = settings.minDPI
-                let absoluteMinDPI = 18  // 绝对最低 DPI（再低则图像不可用）
-
-                while finalSize > maxSizeBytes && emergencyDPI > absoluteMinDPI {
-                    emergencyDPI = max(absoluteMinDPI, Int(Double(emergencyDPI) * 0.8))
-                    resultData = try self.renderPage(page: page, dpi: emergencyDPI)
-                    finalSize = resultData.count
-                    currentDPI = emergencyDPI
-                }
-
-                // 如果 absoluteMinDPI 仍超限，使用二分法在 [absoluteMinDPI, currentDPI] 范围内精确查找
-                if finalSize > maxSizeBytes {
-                    var lowDPI = absoluteMinDPI
-                    var highDPI = emergencyDPI
-                    var bestData: Data? = nil
-                    var bestDPI = absoluteMinDPI
-
-                    // 先测试最低 DPI
-                    let minData = try self.renderPage(page: page, dpi: absoluteMinDPI)
-                    if minData.count <= maxSizeBytes {
-                        bestData = minData
-                        bestDPI = absoluteMinDPI
-
-                        // 二分法找到最大可用 DPI
-                        while highDPI - lowDPI > 2 {
-                            let midDPI = (lowDPI + highDPI) / 2
-                            let midData = try self.renderPage(page: page, dpi: midDPI)
-                            if midData.count <= maxSizeBytes {
-                                lowDPI = midDPI
-                                bestData = midData
-                                bestDPI = midDPI
-                            } else {
-                                highDPI = midDPI
-                            }
-                        }
-
-                        resultData = bestData!
-                        currentDPI = bestDPI
-                    }
-                    // 如果即使 absoluteMinDPI 也超限，保持当前结果（已是最佳努力）
-                }
-            }
-
-            return (resultData, currentDPI)
-        }.value
+        return (resultData, currentDPI)
     }
 
     /// 渲染页面为 PNG 数据（nonisolated 因为不访问 actor 状态）
