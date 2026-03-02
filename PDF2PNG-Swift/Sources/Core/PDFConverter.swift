@@ -32,6 +32,8 @@ actor PDFConverter {
         case renderFailed(String)
         case saveFailed(String)
         case cancelled
+        case sizeLimitExceeded(currentSizeMB: Double, limitMB: Double, minDPI: Int)
+        case minDPIConflict(minDPI: Int, minDPISizeMB: Double, limitMB: Double, suggestion: String)
 
         var errorDescription: String? {
             switch self {
@@ -45,6 +47,17 @@ actor PDFConverter {
                 return String(localized: "error.saveFailed", bundle: .module).replacingOccurrences(of: "%@", with: reason)
             case .cancelled:
                 return String(localized: "error.conversionCancelled", bundle: .module)
+            case .sizeLimitExceeded(let currentSizeMB, let limitMB, let minDPI):
+                return "无法将文件压缩到 \(String(format: "%.1f", limitMB)) MB 以内。当前大小: \(String(format: "%.1f", currentSizeMB)) MB (已使用最低 DPI: \(minDPI))。请提高大小限制或降低 DPI 范围。"
+            case .minDPIConflict(let minDPI, let sizeMB, let limitMB, let suggestion):
+                return """
+最小 DPI 设置与文件大小限制冲突
+
+您设置的最小 DPI (\(minDPI)) 生成的文件大小为 \(String(format: "%.2f", sizeMB)) MB
+超过了您设置的文件大小限制 \(String(format: "%.2f", limitMB)) MB
+
+\(suggestion)
+"""
             }
         }
     }
@@ -105,14 +118,25 @@ actor PDFConverter {
                 throw ConversionError.renderFailed(String(localized: "error.cannotGetPage", bundle: .module).replacingOccurrences(of: "%d", with: "1"))
             }
             let outputURL = actualOutputDir.appendingPathComponent("\(baseName).png")
+
+            // --- UNIFIED LOGIC ---
+            // Directly call convertPage, which contains the correct binary search / quality logic.
             let (data, dpi) = try await convertPage(page: page, settings: settings)
             try data.write(to: outputURL)
+
+            // Verify the output file size if not in quality-first mode
+            if !settings.qualityFirst {
+                try verifyOutputFileSize(url: outputURL, settings: settings, usedDPI: dpi)
+            }
+
+            // Report progress and return result
             progress(ProgressInfo(currentPage: 1, totalPages: 1, progress: 1.0))
             let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
             return ConversionResult(outputURLs: [outputURL], minDPI: dpi, maxDPI: dpi, totalSizeBytes: data.count, renderTimeMs: elapsed)
+            // --- END UNIFIED LOGIC ---
         }
 
-        // 多页并行处理（每页独立计算 DPI）
+        // 多页文件：每页独立计算最优 DPI（严格模式）
         var results: [(index: Int, url: URL, size: Int, dpi: Int)] = []
         var completedCount = 0
 
@@ -127,9 +151,14 @@ actor PDFConverter {
 
                     let outputURL = actualOutputDir.appendingPathComponent("page\(pageIndex + 1).png")
 
-                    // 每页独立计算最优 DPI
+                    // 每页独立计算最优 DPI（使用严格模式确保不超标）
                     let (data, dpi) = try await self.convertPage(page: page, settings: settings)
                     try data.write(to: outputURL)
+
+                    // 验证每页输出文件大小（质量优先模式跳过）
+                    if !settings.qualityFirst {
+                        try self.verifyOutputFileSize(url: outputURL, settings: settings, usedDPI: dpi)
+                    }
 
                     return (pageIndex, outputURL, data.count, dpi)
                 }
@@ -157,10 +186,12 @@ actor PDFConverter {
 
         let outputURLs = results.map { $0.url }
         let totalSize = results.reduce(0) { $0 + $1.size }
-        // 返回 DPI 范围
+
+        // 统计 DPI 范围
         let dpiValues = results.map { $0.dpi }
         let resultMinDPI = dpiValues.min() ?? settings.maxDPI
         let resultMaxDPI = dpiValues.max() ?? settings.maxDPI
+
         let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
 
         return ConversionResult(
@@ -179,6 +210,36 @@ actor PDFConverter {
 
     // MARK: - Private Methods
 
+    /// 验证输出文件大小（保存后的最终检查）
+    private nonisolated func verifyOutputFileSize(
+        url: URL,
+        settings: ConversionSettings,
+        usedDPI: Int
+    ) throws {
+        // 使用 resourceValues - 最可靠的文件大小获取方法
+        guard let resources = try? url.resourceValues(forKeys: [.fileSizeKey]),
+              let fileSize = resources.fileSize else {
+            throw ConversionError.renderFailed("无法验证文件大小")
+        }
+
+        let multiplier = settings.sizeCalculationMode == .safe ? 1_000_000.0 : 1_048_576.0
+        let maxSizeBytes = Int64(settings.maxSizeMB * multiplier)
+        let fileSizeMB = Double(fileSize) / multiplier
+
+        // 严格验证：文件大小必须 <= 限制
+        if Int64(fileSize) > maxSizeBytes {
+            // 删除超标文件
+            try? FileManager.default.removeItem(at: url)
+
+            // 抛出错误
+            throw ConversionError.sizeLimitExceeded(
+                currentSizeMB: fileSizeMB,
+                limitMB: settings.maxSizeMB,
+                minDPI: usedDPI
+            )
+        }
+    }
+
     /// 转换单个页面（在后台线程执行）
     private func convertPage(
         page: PDFPage,
@@ -196,209 +257,88 @@ actor PDFConverter {
 
     // MARK: - Quality-First Mode
 
-    /// 质量优先模式：使用最高 DPI 渲染
+    /// 质量优先模式：使用指定 DPI 渲染，并启用压缩
+    /// 核心逻辑：DPI 固定，在保证清晰度不变的情况下启用 PNG 压缩
     private nonisolated func renderWithQuality(page: PDFPage, dpi: Int) throws -> (Data, Int) {
-        let data = try renderPage(page: page, dpi: dpi)
+        // ✅ 使用 0.85 压缩系数（1.0 是最大压缩，0.85 平衡质量和大小）
+        let data = try renderPage(page: page, dpi: dpi, compression: 0.85)
         return (data, dpi)
     }
 
-    // MARK: - Size-Limit Mode (5-Step Algorithm)
+    // MARK: - Size-Limit Mode (Strict Binary Search)
 
-    /// 大小限制模式：智能 DPI 优化算法
+    /// 大小限制模式：严格二分查找算法
+    /// 确保结果严格小于 maxSizeMB，否则抛出错误
     private nonisolated func renderWithSizeLimit(
         page: PDFPage,
         settings: ConversionSettings
     ) throws -> (Data, Int) {
-        let maxSizeBytes = Int(settings.maxSizeMB * 1024 * 1024)
+        let multiplier = settings.sizeCalculationMode == .safe ? 1_000_000.0 : 1_048_576.0
+        let maxSizeBytes = Int(settings.maxSizeMB * multiplier)
 
-        // Step 1: 尝试最高 DPI
-        var resultData = try renderPage(page: page, dpi: settings.maxDPI)
-        var currentDPI = settings.maxDPI
+        // 安全系数：留 3% 缓冲避免 PNG 压缩波动导致超标
+        let safeSizeBytes = Int(Double(maxSizeBytes) * 0.97)
 
-        if resultData.count <= maxSizeBytes {
-            return (resultData, currentDPI)
+        // Step 1: 快速检查最高 DPI
+        let maxData = try renderPage(page: page, dpi: settings.maxDPI)
+        if maxData.count < safeSizeBytes {
+            return (maxData, settings.maxDPI)
         }
 
-        // Step 2: 渐进式降低 DPI
-        (resultData, currentDPI) = try progressiveReduction(
-            page: page,
-            startDPI: currentDPI,
-            minDPI: settings.minDPI,
-            maxSizeBytes: maxSizeBytes,
-            initialData: resultData
-        )
-
-        // Step 3: 二分法精调
-        if resultData.count > maxSizeBytes && currentDPI > settings.minDPI {
-            (resultData, currentDPI) = try binarySearchOptimize(
-                page: page,
-                lowDPI: settings.minDPI,
-                highDPI: currentDPI,
-                maxSizeBytes: maxSizeBytes
-            )
-        }
-
-        // Step 4: 向上逼近（如果文件太小）
-        if resultData.count < Int(Double(maxSizeBytes) * 0.9) && currentDPI < settings.maxDPI {
-            (resultData, currentDPI) = try upwardApproach(
-                page: page,
-                currentDPI: currentDPI,
-                maxDPI: settings.maxDPI,
-                maxSizeBytes: maxSizeBytes,
-                currentData: resultData
-            )
-        }
-
-        // Step 5: 最终强制验证（绝不超限）
-        if resultData.count > maxSizeBytes {
-            (resultData, currentDPI) = try emergencyFallback(
-                page: page,
+        // Step 2: 检查用户设置的最小 DPI 是否可行
+        // ✅ 修复：严格遵守用户的 minDPI 设置，不再降到 absoluteMinDPI
+        let minData = try renderPage(page: page, dpi: settings.minDPI)
+        if minData.count >= safeSizeBytes {
+            // 用户的 minDPI 无法满足大小限制，抛出清晰的错误提示
+            let currentSizeMB = Double(minData.count) / multiplier
+            throw ConversionError.minDPIConflict(
                 minDPI: settings.minDPI,
-                maxSizeBytes: maxSizeBytes
+                minDPISizeMB: currentSizeMB,
+                limitMB: settings.maxSizeMB,
+                suggestion: "请选择：提高文件大小限制到 \(Int(ceil(currentSizeMB))) MB 或 降低最小 DPI"
             )
         }
 
-        return (resultData, currentDPI)
-    }
+        // Step 3: 精确二分查找（精度 1 DPI，使用安全阈值）
+        var low = settings.minDPI
+        var high = settings.maxDPI
+        var bestData = minData
+        var bestDPI = settings.minDPI
 
-    /// Step 2: 渐进式降低 DPI (Progressive Reduction)
-    private nonisolated func progressiveReduction(
-        page: PDFPage,
-        startDPI: Int,
-        minDPI: Int,
-        maxSizeBytes: Int,
-        initialData: Data
-    ) throws -> (Data, Int) {
-        var resultData = initialData
-        var currentDPI = startDPI
-        var safety = 0.95
-
-        for _ in 0..<3 {
-            guard resultData.count > maxSizeBytes else { break }
-
-            let ratio = Double(maxSizeBytes) / Double(resultData.count)
-            currentDPI = max(minDPI, Int(Double(currentDPI) * sqrt(ratio) * safety))
-
-            resultData = try renderPage(page: page, dpi: currentDPI)
-            safety *= 0.95
-        }
-
-        return (resultData, currentDPI)
-    }
-
-    /// Step 3: 二分法精调 (Binary Search Optimization)
-    private nonisolated func binarySearchOptimize(
-        page: PDFPage,
-        lowDPI: Int,
-        highDPI: Int,
-        maxSizeBytes: Int
-    ) throws -> (Data, Int) {
-        var low = lowDPI
-        var high = highDPI
-        var resultData = try renderPage(page: page, dpi: low)
-        var currentDPI = low
-
-        while high - low > 5 {
+        while high - low > 1 {
             let midDPI = (low + high) / 2
             let midData = try renderPage(page: page, dpi: midDPI)
 
-            if midData.count <= maxSizeBytes {
+            if midData.count < safeSizeBytes {
+                // 可行，尝试更高 DPI
                 low = midDPI
-                resultData = midData
-                currentDPI = midDPI
+                bestData = midData
+                bestDPI = midDPI
             } else {
+                // 超标或接近临界值，降低 DPI
                 high = midDPI
             }
         }
 
-        return (resultData, currentDPI)
-    }
-
-    /// Step 4: 向上逼近 (Upward Approach)
-    private nonisolated func upwardApproach(
-        page: PDFPage,
-        currentDPI: Int,
-        maxDPI: Int,
-        maxSizeBytes: Int,
-        currentData: Data
-    ) throws -> (Data, Int) {
-        var bestData = currentData
-        var bestDPI = currentDPI
-
-        var lowDPI = currentDPI
-        var highDPI = min(Int(Double(currentDPI) * 1.15), maxDPI)
-
-        while highDPI - lowDPI > 15 {  // 放宽精度到 15 DPI
-            let midDPI = (lowDPI + highDPI) / 2
-            let midData = try renderPage(page: page, dpi: midDPI)
-
-            if midData.count <= maxSizeBytes {
-                lowDPI = midDPI
-                bestData = midData
-                bestDPI = midDPI
-            } else {
-                highDPI = midDPI
-            }
+        // Step 4: 最终强制验证（确保绝对不超过真实限制）
+        if bestData.count > maxSizeBytes {
+            let currentSizeMB = Double(bestData.count) / multiplier
+            throw ConversionError.sizeLimitExceeded(
+                currentSizeMB: currentSizeMB,
+                limitMB: settings.maxSizeMB,
+                minDPI: bestDPI
+            )
         }
 
         return (bestData, bestDPI)
     }
 
-    /// Step 5: 应急降档 (Emergency Fallback)
-    private nonisolated func emergencyFallback(
-        page: PDFPage,
-        minDPI: Int,
-        maxSizeBytes: Int
-    ) throws -> (Data, Int) {
-        let absoluteMinDPI = 18  // 绝对最低 DPI（再低则图像不可用）
-
-        // 先尝试用户设置的 minDPI
-        var resultData = try renderPage(page: page, dpi: minDPI)
-        var currentDPI = minDPI
-
-        // 如果仍超限，持续降低到绝对下限
-        var emergencyDPI = minDPI
-        while resultData.count > maxSizeBytes && emergencyDPI > absoluteMinDPI {
-            emergencyDPI = max(absoluteMinDPI, Int(Double(emergencyDPI) * 0.8))
-            resultData = try renderPage(page: page, dpi: emergencyDPI)
-            currentDPI = emergencyDPI
-        }
-
-        // 如果 absoluteMinDPI 仍超限，使用二分法精确查找
-        if resultData.count > maxSizeBytes {
-            let minData = try renderPage(page: page, dpi: absoluteMinDPI)
-
-            if minData.count <= maxSizeBytes {
-                // 二分法找到最大可用 DPI
-                var lowDPI = absoluteMinDPI
-                var highDPI = emergencyDPI
-                var bestData = minData
-                var bestDPI = absoluteMinDPI
-
-                while highDPI - lowDPI > 2 {
-                    let midDPI = (lowDPI + highDPI) / 2
-                    let midData = try renderPage(page: page, dpi: midDPI)
-
-                    if midData.count <= maxSizeBytes {
-                        lowDPI = midDPI
-                        bestData = midData
-                        bestDPI = midDPI
-                    } else {
-                        highDPI = midDPI
-                    }
-                }
-
-                resultData = bestData
-                currentDPI = bestDPI
-            }
-            // 如果即使 absoluteMinDPI 也超限，保持当前结果（已是最佳努力）
-        }
-
-        return (resultData, currentDPI)
-    }
-
     /// 渲染页面为 PNG 数据（nonisolated 因为不访问 actor 状态）
-    private nonisolated func renderPage(page: PDFPage, dpi: Int) throws -> Data {
+    /// - Parameters:
+    ///   - page: PDF 页面
+    ///   - dpi: DPI 值
+    ///   - compression: PNG 压缩系数 (0.0-1.0)，0.0=无压缩，1.0=最大压缩
+    private nonisolated func renderPage(page: PDFPage, dpi: Int, compression: Double = 0.0) throws -> Data {
         let pageRect = page.bounds(for: .mediaBox)
         let scale = CGFloat(dpi) / Self.pdfBaseDPI
 
@@ -432,9 +372,20 @@ actor PDFConverter {
             throw ConversionError.renderFailed(String(localized: "error.cannotGenerateImage", bundle: .module))
         }
 
-        // 转换为 PNG
+        // 转换为 PNG（应用压缩）
         let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
-        guard let pngData = bitmapRep.representation(using: .png, properties: [:]) else {
+
+        // ✅ 应用 PNG 压缩（如果 compression > 0）
+        let properties: [NSBitmapImageRep.PropertyKey: Any]
+        if compression > 0 {
+            // 质量优先模式：启用压缩以减小文件大小
+            properties = [.compressionFactor: NSNumber(value: compression)]
+        } else {
+            // 大小限制模式：无压缩，精确控制文件大小
+            properties = [:]
+        }
+
+        guard let pngData = bitmapRep.representation(using: .png, properties: properties) else {
             throw ConversionError.renderFailed(String(localized: "error.cannotGeneratePNG", bundle: .module))
         }
 

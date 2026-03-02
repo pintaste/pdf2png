@@ -7,9 +7,17 @@ struct ConversionSettings: Codable {
     static let minAllowedDPI = 72
     static let maxAllowedDPI = 2400
     static let emergencyMinDPI = 36  // 应急模式绝对下限
-    static let minAllowedSizeMB = 0.5
+    static let minAllowedSizeMB = 0.01
     static let maxAllowedSizeMB = 100.0
 
+    // MARK: - Enums
+
+    /// 大小计算模式
+    enum SizeCalculationMode: String, Codable, CaseIterable {
+        case safe = "Safe (1000)"
+        case aggressive = "Aggressive (1024)"
+    }
+    
     // MARK: - Properties
 
     /// 最大文件大小（MB）
@@ -35,6 +43,9 @@ struct ConversionSettings: Codable {
 
     /// 质量优先模式（忽略大小限制）
     var qualityFirst: Bool
+    
+    /// 大小计算模式
+    var sizeCalculationMode: SizeCalculationMode
 
     /// 输出目录（nil 表示与源文件相同目录）
     var outputDirectory: URL?
@@ -66,6 +77,7 @@ struct ConversionSettings: Codable {
         minDPI: 150,
         maxDPI: 600,
         qualityFirst: false,
+        sizeCalculationMode: .safe,
         outputDirectory: nil
     )
 
@@ -75,6 +87,7 @@ struct ConversionSettings: Codable {
         minDPI: 300,
         maxDPI: 1200,
         qualityFirst: true,
+        sizeCalculationMode: .safe,
         outputDirectory: nil
     )
 
@@ -111,13 +124,19 @@ struct ConversionSettings: Codable {
             case .small: return 2.0
             case .medium: return 5.0
             case .large: return 10.0
-            case .unlimited: return Double.infinity
+            case .unlimited:
+                // "无限制"模式启用质量优先，此值被忽略
+                // 返回最大允许值以避免语义混淆
+                return Self.maxAllowedSizeMB
             }
         }
 
         var qualityFirst: Bool {
             self == .unlimited
         }
+
+        // 引用外部常量
+        private static var maxAllowedSizeMB: Double { ConversionSettings.maxAllowedSizeMB }
     }
 }
 

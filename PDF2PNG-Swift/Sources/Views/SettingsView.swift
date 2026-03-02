@@ -75,7 +75,7 @@ struct SettingsView: View {
                             get: { Double(appState.settings.minDPI) },
                             set: { appState.settings.minDPI = Int($0) }
                         ),
-                        in: 72...600,
+                        in: 72...Double(max(150, appState.settings.maxDPI - 50)),  // ✅ 修复：动态上限，确保 minDPI < maxDPI
                         step: 50
                     )
                 }
@@ -86,7 +86,7 @@ struct SettingsView: View {
                 HStack {
                     presetButton(title: String(localized: "settingsView.standard", bundle: .module), dpi: 600, sizeMB: 5.0, qualityFirst: false)
                     presetButton(title: String(localized: "settingsView.hd", bundle: .module), dpi: 1200, sizeMB: 10.0, qualityFirst: false)
-                    presetButton(title: String(localized: "settingsView.ultra", bundle: .module), dpi: 2400, sizeMB: 0, qualityFirst: true)
+                    presetButton(title: String(localized: "settingsView.ultra", bundle: .module), dpi: 2400, sizeMB: 20, qualityFirst: true)  // ✅ 修复：使用合理的默认值 20 MB
                 }
             }
 

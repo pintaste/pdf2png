@@ -11,6 +11,7 @@
 "settings.title" = "设置";
 "settings.qualityFirst" = "质量优先";
 "settings.sizeLimit" = "大小限制";
+"settings.maxSize" = "最大尺寸";
 "settings.dpi" = "DPI";
 "settings.mb" = "MB";
 
@@ -138,3 +139,8 @@
 "preset.size.medium" = "中 (5 MB)";
 "preset.size.large" = "大 (10 MB)";
 "preset.size.unlimited" = "无限制";
+
+/* Size Calculation Mode */
+"settings.size.safe" = "安全";
+"settings.size.aggressive" = "激进";
+"settings.size.warning" = "可能被部分网站拒绝";

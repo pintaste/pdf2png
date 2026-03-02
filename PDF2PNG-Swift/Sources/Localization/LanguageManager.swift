@@ -7,7 +7,7 @@ class LanguageManager: ObservableObject {
     @Published var currentLanguage: String {
         didSet {
             UserDefaults.standard.set([currentLanguage], forKey: "AppleLanguages")
-            UserDefaults.standard.synchronize()
+            // synchronize() 已过时，系统会自动同步
             updateBundle()
         }
     }

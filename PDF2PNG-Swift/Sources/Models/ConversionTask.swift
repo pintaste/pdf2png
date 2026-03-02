@@ -5,19 +5,26 @@ struct ConversionTask: Identifiable {
     let id: UUID
     let sourceURL: URL
     var status: TaskStatus
+    let fileSizeFormatted: String  // 存储属性，避免重复 I/O
 
     /// 文件名
     var fileName: String {
         sourceURL.lastPathComponent
     }
 
-    /// 文件大小（格式化）
-    var fileSizeFormatted: String {
-        guard let attrs = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
-              let size = attrs[.size] as? Int64 else {
-            return String(localized: "error.unknown", bundle: .module)
+    /// 初始化方法
+    init(id: UUID, sourceURL: URL, status: TaskStatus) {
+        self.id = id
+        self.sourceURL = sourceURL
+        self.status = status
+
+        // 在初始化时计算文件大小（仅一次）
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
+           let size = attrs[.size] as? Int64 {
+            self.fileSizeFormatted = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+        } else {
+            self.fileSizeFormatted = String(localized: "error.unknown", bundle: .module)
         }
-        return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
     }
 }
 
@@ -27,11 +34,12 @@ enum TaskStatus {
     case converting(progress: Double, currentPage: Int, totalPages: Int)
     case completed(result: PDFConverter.ConversionResult)
     case failed(error: String)
+    case cancelled
 
     /// 是否完成
     var isCompleted: Bool {
         switch self {
-        case .completed, .failed:
+        case .completed, .failed, .cancelled:
             return true
         default:
             return false
@@ -45,7 +53,7 @@ enum TaskStatus {
             return 0
         case .converting(let progress, _, _):
             return progress
-        case .completed, .failed:
+        case .completed, .failed, .cancelled:
             return 1
         }
     }
@@ -67,12 +75,9 @@ enum TaskStatus {
             let timeStr = formatTime(result.renderTimeMs)
             return "\(String(localized: "status.completed", bundle: .module)) (\(size), \(result.dpiDisplay)DPI, \(timeStr))"
         case .failed(let error):
-            // Check for cancelled status (supports both legacy hardcoded and localized strings)
-            let cancelledStrings = ["已取消", "Cancelled", String(localized: "status.cancelled", bundle: .module)]
-            if cancelledStrings.contains(error) {
-                return String(localized: "status.cancelled", bundle: .module)
-            }
             return "\(String(localized: "status.failed", bundle: .module)): \(error)"
+        case .cancelled:
+            return String(localized: "status.cancelled", bundle: .module)
         }
     }
 

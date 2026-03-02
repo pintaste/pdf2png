@@ -1,10 +1,21 @@
 import SwiftUI
+import Foundation
 
 /// PDF2PNG 应用入口
 @main
 struct PDF2PNGApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState()
+
+    init() {
+        // 检查是否为 CLI 模式
+        if CommandLine.arguments.count > 1 {
+            Task {
+                await CLIHandler.run()
+                exit(0)
+            }
+        }
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -61,7 +72,7 @@ struct PDF2PNGApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 配置应用
-        NSApp.appearance = NSAppearance(named: .aqua)
+
 
         // 配置窗口样式 - 无边框 + 圆角
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

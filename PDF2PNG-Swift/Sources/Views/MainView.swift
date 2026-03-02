@@ -152,6 +152,9 @@ struct MainView: View {
 
     // MARK: - Settings Bar
 
+    // ✅ 临时输入状态（避免 didSet 干扰）
+    @State private var sizeInputText: String = ""
+
     private var settingsBar: some View {
         VStack(spacing: 0) {
             // 可折叠的设置内容
@@ -214,7 +217,8 @@ struct MainView: View {
                                 get: { Double(appState.settings.maxDPI) },
                                 set: { appState.settings.maxDPI = Int($0) }
                             ),
-                            range: 150...1200
+                            range: 150...2400,  // ✅ 修复：与 SettingsView 保持一致，支持到 2400
+                            increment: 10  // 每次移动 10 DPI
                         )
                         .frame(width: 80, height: 16)
 
@@ -229,23 +233,40 @@ struct MainView: View {
                         }
                         .fixedSize(horizontal: true, vertical: false)
                     } else {
-                        // 大小限制模式 - 显示文件大小设置
-                        ThemedNSSlider(
-                            value: $appState.settings.maxSizeMB,
-                            range: 1...50
-                        )
-                        .frame(width: 80, height: 16)
+                        VStack(alignment: .trailing, spacing: 6) {
+                            // 大小限制模式 - 文件大小输入框
+                            HStack(spacing: 4) {
+                                Text(LanguageManager.shared.localized("settings.maxSize"))
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(ThemeColors.textSecondary)
 
-                        HStack(spacing: 4) {
-                            ThemedDoubleField(value: $appState.settings.maxSizeMB, width: 42)
-                                .frame(width: 42, height: 22)
+                                ThemedDoubleField(value: $appState.settings.maxSizeMB, width: 60)
+                                    .frame(width: 60, height: 24)
 
-                            Text("MB")
-                                .font(.system(size: 10))
-                                .foregroundColor(ThemeColors.textMuted)
-                                .fixedSize(horizontal: true, vertical: false)
+                                Text("MB")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(ThemeColors.textMuted)
+                            }
+                            
+                            // 新增：模式选择
+                            Picker("Calculation Mode", selection: $appState.settings.sizeCalculationMode) {
+                                Text(LanguageManager.shared.localized("settings.size.safe")).tag(ConversionSettings.SizeCalculationMode.safe)
+                                Text(LanguageManager.shared.localized("settings.size.aggressive")).tag(ConversionSettings.SizeCalculationMode.aggressive)
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .frame(width: 150)
+
+                            // 新增：警告信息
+                            if appState.settings.sizeCalculationMode == .aggressive {
+                                Text(LanguageManager.shared.localized("settings.size.warning"))
+                                    .font(.system(size: 9))
+                                    .foregroundColor(ThemeColors.textMuted)
+                            } else {
+                                // Add an empty text to maintain layout consistency
+                                Text("").font(.system(size: 9))
+                            }
                         }
-                        .fixedSize(horizontal: true, vertical: false)
                     }
                 }
                 .padding(.horizontal, 15)
@@ -295,17 +316,7 @@ struct MainView: View {
         return String(localized: "button.startConvert", bundle: LanguageManager.shared.bundle)
     }
 
-    /// 重新开始失败的任务
-    private func restartFailedTasks() {
-        let failedURLs = appState.tasks.compactMap { task -> URL? in
-            if case .failed = task.status {
-                return task.sourceURL
-            }
-            return nil
-        }
-        appState.tasks.removeAll()
-        appState.addFiles(failedURLs)
-    }
+
 
     /// 文件列表摘要（文件数量 + 当前设置）
     private var fileListSummary: String {
@@ -422,13 +433,11 @@ struct MainView: View {
                 // 转换按钮 - 黄色
                 Button(action: {
                     if !appState.pendingFiles.isEmpty {
+                        // 直接开始转换
                         appState.selectOutputAndConvert()
-                    } else if hasFailedTasks {
-                        // 重新开始：将失败的任务移回待转换列表
-                        restartFailedTasks()
-                    } else if hasCompletedTasks {
-                        // 所有任务完成后：清空任务列表，准备新的转换
-                        appState.tasks.removeAll()
+                    } else if hasFailedTasks || hasCompletedTasks {
+                        // 重新开始所有任务
+                        appState.restartConversion()
                     }
                 }) {
                     Text(convertButtonTitle)
@@ -490,15 +499,28 @@ struct ThemedNumberField: NSViewRepresentable {
         textField.delegate = context.coordinator
         textField.alignment = .center
         textField.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+
+        // ✅ 基本输入设置
+        textField.isEditable = true
+        textField.isSelectable = true
+        textField.isEnabled = true
+        textField.allowsEditingTextAttributes = false
+        textField.importsGraphics = false
+
+        // 边框和背景
         textField.isBordered = false
         textField.drawsBackground = true
         textField.backgroundColor = NSColor(ThemeColors.backgroundInput)
         textField.textColor = NSColor(ThemeColors.textPrimary)
+        textField.focusRingType = .none
+
+        // Layer 设置（确保不阻挡交互）
         textField.wantsLayer = true
         textField.layer?.cornerRadius = 6
         textField.layer?.borderWidth = 1
         textField.layer?.borderColor = NSColor(ThemeColors.borderNormal).cgColor
-        textField.focusRingType = .none
+        textField.layer?.masksToBounds = true
+
         textField.stringValue = "\(value)"
         return textField
     }
@@ -557,7 +579,138 @@ struct ThemedNumberField: NSViewRepresentable {
     }
 }
 
-// MARK: - ThemedNumberField for Double
+
+
+// MARK: - MaxSizeInputField (专用大小输入框)
+
+struct MaxSizeInputField: NSViewRepresentable {
+    @Binding var value: Double
+    @ObservedObject private var themeManager = ThemeManager.shared
+
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField()
+
+        // 基本配置
+        textField.alignment = .center
+        textField.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        textField.delegate = context.coordinator
+
+        // 确保可以获得焦点和编辑
+        textField.isEditable = true
+        textField.isSelectable = true
+        textField.isBordered = false
+        textField.drawsBackground = true
+        textField.focusRingType = .none
+
+        // 移除可能阻止输入的样式
+        textField.bezelStyle = .squareBezel
+        textField.isBezeled = false
+
+        // 主题颜色
+        updateAppearance(textField)
+
+        // 边框样式
+        textField.wantsLayer = true
+        textField.layer?.cornerRadius = 6
+        textField.layer?.borderWidth = 1
+        textField.layer?.borderColor = NSColor(ThemeColors.borderNormal).cgColor
+
+        // 初始值
+        textField.stringValue = formatValue(value)
+
+        return textField
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        // 确保可编辑状态始终保持
+        nsView.isEditable = true
+        nsView.isSelectable = true
+
+        // 仅在非编辑状态下更新显示
+        if !context.coordinator.isEditing {
+            nsView.stringValue = formatValue(value)
+        }
+
+        // 更新主题（仅在非编辑时，避免干扰输入）
+        if !context.coordinator.isEditing {
+            updateAppearance(nsView)
+        }
+
+        if !context.coordinator.isEditing {
+            nsView.layer?.borderColor = NSColor(ThemeColors.borderNormal).cgColor
+        }
+    }
+
+    private func updateAppearance(_ textField: NSTextField) {
+        // 根据主题设置外观
+        if themeManager.isDarkMode {
+            textField.appearance = NSAppearance(named: .darkAqua)
+        } else {
+            textField.appearance = NSAppearance(named: .aqua)
+        }
+        textField.backgroundColor = NSColor(ThemeColors.backgroundInput)
+        textField.textColor = NSColor(ThemeColors.textPrimary)
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    private func formatValue(_ value: Double) -> String {
+        let formatted = String(format: "%.2f", value)
+        return formatted.replacingOccurrences(of: "\\.?0+$", with: "", options: .regularExpression)
+    }
+
+    class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: MaxSizeInputField
+        var isEditing = false
+
+        init(_ parent: MaxSizeInputField) {
+            self.parent = parent
+        }
+
+        func controlTextDidBeginEditing(_ obj: Notification) {
+            isEditing = true
+            if let textField = obj.object as? NSTextField {
+                // 聚焦时显示蓝色边框
+                textField.layer?.borderColor = NSColor(ThemeColors.accent).cgColor
+                textField.layer?.borderWidth = 1.5
+            }
+        }
+
+        func controlTextDidEndEditing(_ obj: Notification) {
+            isEditing = false
+            if let textField = obj.object as? NSTextField {
+                // 失焦时恢复普通边框
+                textField.layer?.borderColor = NSColor(ThemeColors.borderNormal).cgColor
+                textField.layer?.borderWidth = 1
+
+                // 更新值
+                if let newValue = Double(textField.stringValue) {
+                    parent.value = newValue
+                } else {
+                    // 无效输入，恢复原值
+                    textField.stringValue = parent.formatValue(parent.value)
+                }
+            }
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            // 按 Enter 键提交
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                if let textField = control as? NSTextField,
+                   let newValue = Double(textField.stringValue) {
+                    parent.value = newValue
+                }
+                control.window?.makeFirstResponder(nil)
+                return true
+            }
+            return false
+        }
+    }
+}
+
+// MARK: - ThemedDoubleField (全新实现)
 
 struct ThemedDoubleField: NSViewRepresentable {
     @Binding var value: Double
@@ -565,34 +718,57 @@ struct ThemedDoubleField: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSTextField {
         let textField = NSTextField()
-        textField.delegate = context.coordinator
+
+        // 基本配置
         textField.alignment = .center
         textField.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        textField.delegate = context.coordinator
+
+        // 使用标准的可编辑文本框样式
         textField.isBordered = false
+        textField.isEditable = true
+        textField.isSelectable = true
         textField.drawsBackground = true
+        textField.focusRingType = .none
+
+        // 主题颜色
         textField.backgroundColor = NSColor(ThemeColors.backgroundInput)
         textField.textColor = NSColor(ThemeColors.textPrimary)
+
+        // 边框样式
         textField.wantsLayer = true
         textField.layer?.cornerRadius = 6
         textField.layer?.borderWidth = 1
         textField.layer?.borderColor = NSColor(ThemeColors.borderNormal).cgColor
-        textField.focusRingType = .none
-        textField.stringValue = "\(Int(value))"
+
+        // 初始值
+        textField.stringValue = formatValue(value)
+
         return textField
     }
 
     func updateNSView(_ nsView: NSTextField, context: Context) {
+        // 仅在非编辑状态下更新显示
         if !context.coordinator.isEditing {
-            nsView.stringValue = "\(Int(value))"
+            nsView.stringValue = formatValue(value)
         }
-        // 更新主题相关颜色
+
+        // 更新主题颜色
         nsView.backgroundColor = NSColor(ThemeColors.backgroundInput)
         nsView.textColor = NSColor(ThemeColors.textPrimary)
-        nsView.layer?.borderColor = NSColor(ThemeColors.borderNormal).cgColor
+        if !context.coordinator.isEditing {
+            nsView.layer?.borderColor = NSColor(ThemeColors.borderNormal).cgColor
+        }
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
+    }
+
+    private func formatValue(_ value: Double) -> String {
+        // 格式化显示：移除末尾的 .00
+        let formatted = String(format: "%.2f", value)
+        return formatted.replacingOccurrences(of: "\\.?0+$", with: "", options: .regularExpression)
     }
 
     class Coordinator: NSObject, NSTextFieldDelegate {
@@ -606,6 +782,7 @@ struct ThemedDoubleField: NSViewRepresentable {
         func controlTextDidBeginEditing(_ obj: Notification) {
             isEditing = true
             if let textField = obj.object as? NSTextField {
+                // 聚焦时显示蓝色边框
                 textField.layer?.borderColor = NSColor(ThemeColors.accent).cgColor
                 textField.layer?.borderWidth = 1.5
             }
@@ -614,18 +791,26 @@ struct ThemedDoubleField: NSViewRepresentable {
         func controlTextDidEndEditing(_ obj: Notification) {
             isEditing = false
             if let textField = obj.object as? NSTextField {
+                // 失焦时恢复普通边框
                 textField.layer?.borderColor = NSColor(ThemeColors.borderNormal).cgColor
                 textField.layer?.borderWidth = 1
-                if let doubleValue = Double(textField.stringValue) {
-                    parent.value = doubleValue
+
+                // 更新值
+                if let newValue = Double(textField.stringValue) {
+                    parent.value = newValue
+                } else {
+                    // 无效输入，恢复原值
+                    textField.stringValue = parent.formatValue(parent.value)
                 }
             }
         }
 
         func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            // 按 Enter 键提交
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-                if let doubleValue = Double(control.stringValue) {
-                    parent.value = doubleValue
+                if let textField = control as? NSTextField,
+                   let newValue = Double(textField.stringValue) {
+                    parent.value = newValue
                 }
                 control.window?.makeFirstResponder(nil)
                 return true
@@ -640,6 +825,7 @@ struct ThemedDoubleField: NSViewRepresentable {
 struct ThemedNSSlider: NSViewRepresentable {
     @Binding var value: Double
     let range: ClosedRange<Double>
+    var increment: Double = 1.0  // 步进值，默认为 1
     @ObservedObject private var themeManager = ThemeManager.shared
 
     func makeNSView(context: Context) -> NSSlider {
@@ -652,6 +838,8 @@ struct ThemedNSSlider: NSViewRepresentable {
         slider.controlSize = .small
         slider.sliderType = .linear
         slider.isContinuous = true
+
+        // ✅ 连续模式，允许平滑滑动
         slider.numberOfTickMarks = 0
         slider.allowsTickMarkValuesOnly = false
 
@@ -661,7 +849,10 @@ struct ThemedNSSlider: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSSlider, context: Context) {
-        nsView.doubleValue = value
+        // 仅在值明显不同时更新，避免循环更新
+        if abs(nsView.doubleValue - value) > 0.5 {
+            nsView.doubleValue = value
+        }
         updateSliderAppearance(nsView)
     }
 
@@ -686,7 +877,15 @@ struct ThemedNSSlider: NSViewRepresentable {
         }
 
         @objc func valueChanged(_ sender: NSSlider) {
-            parent.value = sender.doubleValue
+            // 根据步进值对齐滑块值
+            let rawValue = sender.doubleValue
+            let steppedValue = round(rawValue / parent.increment) * parent.increment
+
+            // 确保在范围内
+            let clampedValue = max(parent.range.lowerBound, min(parent.range.upperBound, steppedValue))
+
+            // 更新绑定值
+            parent.value = clampedValue
         }
     }
 }

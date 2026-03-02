@@ -11,6 +11,7 @@
 "settings.title" = "Settings";
 "settings.qualityFirst" = "Quality";
 "settings.sizeLimit" = "Size Limit";
+"settings.maxSize" = "Max Size";
 "settings.dpi" = "DPI";
 "settings.mb" = "MB";
 
@@ -138,3 +139,8 @@
 "preset.size.medium" = "Medium (5 MB)";
 "preset.size.large" = "Large (10 MB)";
 "preset.size.unlimited" = "Unlimited";
+
+/* Size Calculation Mode */
+"settings.size.safe" = "Safe";
+"settings.size.aggressive" = "Aggressive";
+"settings.size.warning" = "May be rejected by some websites";

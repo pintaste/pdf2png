@@ -40,6 +40,7 @@ class AppState: ObservableObject {
 
     // MARK: - Private Properties
 
+    private var lastOutputDirectory: URL?
     private var cancellables = Set<AnyCancellable>()
     private let converter = PDFConverter()
 
@@ -90,12 +91,15 @@ class AppState: ObservableObject {
         panel.prompt = String(localized: "output.selectFolder", bundle: .module)
         panel.message = String(localized: "output.message", bundle: .module)
 
-        // 默认定位到第一个输入文件的目录
-        if let firstFile = pendingFiles.first {
+        // 默认定位到上次的目录或第一个输入文件的目录
+        if let lastDir = lastOutputDirectory {
+            panel.directoryURL = lastDir
+        } else if let firstFile = pendingFiles.first {
             panel.directoryURL = firstFile.deletingLastPathComponent()
         }
 
         if panel.runModal() == .OK, let outputURL = panel.url {
+            self.lastOutputDirectory = outputURL // 保存本次选择的目录
             settings.outputDirectory = outputURL
 
             // 检查是否有文件将被覆盖
@@ -108,6 +112,33 @@ class AppState: ObservableObject {
                     await startConversion()
                 }
             }
+        }
+    }
+
+    /// 重新开始转换（失败和已完成的）
+    func restartConversion() {
+        // 重新填充待处理列表
+        let urlsToRestart = tasks.compactMap { $0.sourceURL }
+        guard !urlsToRestart.isEmpty else { return }
+        
+        tasks.removeAll()
+        addFiles(urlsToRestart)
+
+        // 如果有上次的输出目录，直接开始，否则让用户选择
+        if let lastDir = lastOutputDirectory {
+            settings.outputDirectory = lastDir
+            // 检查覆盖（因为文件列表变了）
+            let existingFiles = checkExistingFiles(outputDir: lastDir)
+            if !existingFiles.isEmpty {
+                filesToOverwrite = existingFiles
+                showOverwriteConfirm = true
+            } else {
+                Task {
+                    await startConversion()
+                }
+            }
+        } else {
+            selectOutputAndConvert()
         }
     }
 
@@ -218,7 +249,20 @@ class AppState: ObservableObject {
                                 self.tasks[idx].status = .completed(result: result)
                             }
                         }
-                    } catch {
+                    } catch let error as PDFConverter.ConversionError {
+                        await MainActor.run {
+                            if !self.isCancelled {
+                                if let idx = self.tasks.firstIndex(where: { $0.id == taskId }) {
+                                    switch error {
+                                    case .cancelled:
+                                        self.tasks[idx].status = .cancelled // Handle cancellation properly
+                                    default:
+                                        self.tasks[idx].status = .failed(error: error.localizedDescription)
+                                    }
+                                }
+                            }
+                        }
+                    } catch { // Catch any other non-ConversionError
                         await MainActor.run {
                             if !self.isCancelled {
                                 if let idx = self.tasks.firstIndex(where: { $0.id == taskId }) {
@@ -269,7 +313,7 @@ class AppState: ObservableObject {
         for i in tasks.indices {
             switch tasks[i].status {
             case .converting, .pending:
-                tasks[i].status = .failed(error: String(localized: "status.cancelled", bundle: .module))
+                tasks[i].status = .cancelled
             default:
                 break
             }

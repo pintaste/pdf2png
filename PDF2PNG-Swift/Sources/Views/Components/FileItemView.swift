@@ -73,6 +73,7 @@ struct FileItemView: View {
         case .converting: return ThemeColors.statusTextProgress
         case .completed: return ThemeColors.statusTextSuccess
         case .failed: return ThemeColors.statusTextError
+        case .cancelled: return ThemeColors.textMuted // Use a muted color for cancelled
         }
     }
 
@@ -89,6 +90,9 @@ struct FileItemView: View {
         case .failed:
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundColor(ThemeColors.error)
+        case .cancelled:
+            Image(systemName: "xmark.circle.fill") // A cross mark to indicate cancellation
+                .foregroundColor(ThemeColors.textMuted) // Muted color
         case .pending:
             EmptyView()
         }
