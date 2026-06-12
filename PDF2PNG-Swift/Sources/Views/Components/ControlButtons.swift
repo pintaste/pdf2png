@@ -12,6 +12,9 @@ struct MacControlButtons: View {
                 .onTapGesture {
                     NSApplication.shared.terminate(nil)
                 }
+                .accessibilityLabel("Close")
+                .accessibilityHint("Quits the application")
+                .accessibilityAddTraits(.isButton)
 
             // 最小化按钮 - 黄色
             Circle()
@@ -20,6 +23,9 @@ struct MacControlButtons: View {
                 .onTapGesture {
                     NSApplication.shared.mainWindow?.miniaturize(nil)
                 }
+                .accessibilityLabel("Minimize")
+                .accessibilityHint("Minimizes the window to the Dock")
+                .accessibilityAddTraits(.isButton)
         }
     }
 }
@@ -47,6 +53,8 @@ struct ThemeToggleButton: View {
             .help(themeManager.isDarkMode
                 ? String(localized: "theme.switchToLight", bundle: LanguageManager.shared.bundle)
                 : String(localized: "theme.switchToDark", bundle: LanguageManager.shared.bundle))
+            .accessibilityLabel(themeManager.isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode")
+            .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -74,6 +82,8 @@ struct SettingsToggleButton: View {
             .help(isExpanded
                 ? String(localized: "theme.collapse", bundle: LanguageManager.shared.bundle)
                 : String(localized: "theme.expand", bundle: LanguageManager.shared.bundle))
+            .accessibilityLabel(isExpanded ? "Collapse Settings" : "Expand Settings")
+            .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -99,5 +109,6 @@ struct LanguageToggleButton: View {
         .help(languageManager.isChinese
             ? languageManager.localized("language.switchToEnglish")
             : languageManager.localized("language.switchToChinese"))
+        .accessibilityLabel(languageManager.isChinese ? "Switch to English" : "Switch to Chinese")
     }
 }

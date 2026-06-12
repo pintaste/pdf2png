@@ -23,7 +23,7 @@ struct PDF2PNGApp: App {
                 .environmentObject(appState)
         }
         .windowStyle(.hiddenTitleBar)
-        .defaultSize(width: 286, height: 480)
+        .defaultSize(width: 320, height: 480)
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandGroup(after: .newItem) {
@@ -77,11 +77,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // 配置窗口样式 - 无边框 + 圆角
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             if let window = NSApp.windows.first {
-                window.styleMask = [.borderless, .miniaturizable, .closable]
+                window.styleMask = [.borderless, .miniaturizable, .closable, .resizable]
                 window.isMovableByWindowBackground = true
                 window.backgroundColor = .clear
                 window.isOpaque = false
                 window.hasShadow = true  // 使用系统阴影
+                window.minSize = NSSize(width: 320, height: 400)
 
                 // 设置内容视图圆角遮罩
                 if let contentView = window.contentView {

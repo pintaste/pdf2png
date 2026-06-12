@@ -183,11 +183,15 @@ struct MainView: View {
                                 .padding(.vertical, 6)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Quality first mode")
+                        .accessibilityHint("Renders at maximum DPI, ignores file size limit")
+                        .accessibilityValue(appState.settings.qualityFirst ? "selected" : "not selected")
 
                         // 竖线分隔符
                         Rectangle()
                             .fill(ThemeColors.borderNormal)
                             .frame(width: 1, height: 16)
+                            .accessibilityHidden(true)
 
                         Button(action: { appState.settings.qualityFirst = false }) {
                             Text(LanguageManager.shared.localized("settings.sizeLimit"))
@@ -199,6 +203,9 @@ struct MainView: View {
                                 .padding(.vertical, 6)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Size limit mode")
+                        .accessibilityHint("Automatically adjusts DPI to fit within the specified file size limit")
+                        .accessibilityValue(appState.settings.qualityFirst ? "not selected" : "selected")
                     }
                     .fixedSize(horizontal: true, vertical: false)
                     .background(ThemeColors.backgroundSecondary)
@@ -396,6 +403,8 @@ struct MainView: View {
             }
             .buttonStyle(.plain)
             .disabled(appState.isConverting)
+            .accessibilityLabel("Add PDF files")
+            .accessibilityHint("Opens the file picker to select PDF files")
 
             // 清空按钮
             Button(action: { appState.clearFiles() }) {
@@ -411,6 +420,8 @@ struct MainView: View {
             }
             .buttonStyle(.plain)
             .disabled(appState.isConverting)
+            .accessibilityLabel("Clear file list")
+            .accessibilityHint("Removes all files from the list")
 
             Spacer()
 
@@ -429,6 +440,8 @@ struct MainView: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Cancel conversion")
+                .accessibilityHint("Stops the current conversion in progress")
             } else {
                 // 转换按钮 - 黄色
                 Button(action: {
@@ -449,6 +462,8 @@ struct MainView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!canStartConversion)
+                .accessibilityLabel(convertButtonTitle)
+                .accessibilityHint(appState.pendingFiles.isEmpty ? "Restarts previously converted files" : "Selects output folder and starts converting PDF files to PNG")
             }
         }
         .padding(.horizontal, 15)
@@ -843,6 +858,10 @@ struct ThemedNSSlider: NSViewRepresentable {
         slider.numberOfTickMarks = 0
         slider.allowsTickMarkValuesOnly = false
 
+        // 无障碍：DPI 滑块
+        slider.setAccessibilityLabel("DPI")
+        slider.setAccessibilityValueDescription("\(Int(value)) DPI")
+
         // 设置外观以适应深色/浅色模式
         updateSliderAppearance(slider)
         return slider
@@ -884,8 +903,9 @@ struct ThemedNSSlider: NSViewRepresentable {
             // 确保在范围内
             let clampedValue = max(parent.range.lowerBound, min(parent.range.upperBound, steppedValue))
 
-            // 更新绑定值
+            // 更新绑定值和无障碍描述
             parent.value = clampedValue
+            sender.setAccessibilityValueDescription("\(Int(clampedValue)) DPI")
         }
     }
 }
