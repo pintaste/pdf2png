@@ -21,25 +21,13 @@ struct ConversionSettings: Codable {
     // MARK: - Properties
 
     /// 最大文件大小（MB）
-    var maxSizeMB: Double {
-        didSet {
-            maxSizeMB = max(Self.minAllowedSizeMB, min(Self.maxAllowedSizeMB, maxSizeMB))
-        }
-    }
+    var maxSizeMB: Double
 
     /// 最小 DPI
-    var minDPI: Int {
-        didSet {
-            minDPI = max(Self.minAllowedDPI, min(maxDPI, minDPI))
-        }
-    }
+    var minDPI: Int
 
     /// 最大 DPI
-    var maxDPI: Int {
-        didSet {
-            maxDPI = max(minDPI, min(Self.maxAllowedDPI, maxDPI))
-        }
-    }
+    var maxDPI: Int
 
     /// 质量优先模式（忽略大小限制）
     var qualityFirst: Bool
