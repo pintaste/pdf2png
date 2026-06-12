@@ -114,21 +114,28 @@ struct BottomBarView: View {
     private var completionSummary: some View {
         let completed = appState.completedTaskCount
         let failed = appState.failedTaskCount
+        let bundle = LanguageManager.shared.bundle
         if completed > 0 || failed > 0 {
             HStack(spacing: 6) {
                 if completed > 0 {
+                    let savedFmt = completed == 1
+                        ? String(localized: "completion.fileSaved", bundle: bundle)
+                        : String(localized: "completion.filesSaved", bundle: bundle)
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(ThemeColors.success)
                         .font(.system(size: 11))
-                    Text("\(completed) \(completed == 1 ? "file" : "files") saved")
+                        .accessibilityHidden(true)
+                    Text(String(format: savedFmt, completed))
                         .font(.system(size: 11))
                         .foregroundColor(ThemeColors.textSecondary)
                 }
                 if failed > 0 {
+                    let failedFmt = String(localized: "completion.failed", bundle: bundle)
                     Image(systemName: "exclamationmark.circle.fill")
                         .foregroundColor(ThemeColors.error)
                         .font(.system(size: 11))
-                    Text("\(failed) failed")
+                        .accessibilityHidden(true)
+                    Text(String(format: failedFmt, failed))
                         .font(.system(size: 11))
                         .foregroundColor(ThemeColors.statusTextError)
                 }
@@ -137,13 +144,14 @@ struct BottomBarView: View {
                     HStack(spacing: 3) {
                         Image(systemName: "folder")
                             .font(.system(size: 10))
-                        Text("Show in Finder")
+                            .accessibilityHidden(true)
+                        Text(String(localized: "button.showInFinder", bundle: bundle))
                             .font(.system(size: 11))
                     }
                     .foregroundColor(ThemeColors.accent)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Show output in Finder")
+                .accessibilityLabel(String(localized: "button.showInFinder", bundle: bundle))
                 .accessibilityHint("Opens the output folder in Finder")
             }
             .padding(.horizontal, 15)
