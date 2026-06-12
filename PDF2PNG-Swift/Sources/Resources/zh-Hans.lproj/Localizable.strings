@@ -144,3 +144,9 @@
 "settings.size.safe" = "安全";
 "settings.size.aggressive" = "激进";
 "settings.size.warning" = "可能被部分网站拒绝";
+
+/* Completion Summary */
+"completion.fileSaved" = "已保存 %d 个文件";
+"completion.filesSaved" = "已保存 %d 个文件";
+"completion.failed" = "%d 个失败";
+"button.showInFinder" = "在 Finder 中显示";

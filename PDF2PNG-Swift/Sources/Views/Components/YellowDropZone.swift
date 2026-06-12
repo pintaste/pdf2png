@@ -30,6 +30,10 @@ struct YellowDropZone: View {
                 isHovering = hovering
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("PDF file drop zone")
+        .accessibilityHint("Click to open file picker, or drag and drop PDF files here")
+        .accessibilityAddTraits(.isButton)
         .onDrop(of: [UTType.pdf, UTType.fileURL], isTargeted: $isHovering) { providers in
             for provider in providers {
                 if provider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) {

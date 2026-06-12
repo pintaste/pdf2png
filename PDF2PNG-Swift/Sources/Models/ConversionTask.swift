@@ -65,8 +65,10 @@ enum TaskStatus {
             return String(localized: "status.pending", bundle: .module)
         case .converting(_, let currentPage, let totalPages):
             if totalPages > 1 {
-                return String(localized: "status.page", bundle: .module)
-                    .replacingOccurrences(of: "%d/%d", with: "\(currentPage)/\(totalPages)")
+                return String(
+                    format: String(localized: "status.page", bundle: .module),
+                    currentPage, totalPages
+                )
             } else {
                 return String(localized: "status.converting", bundle: .module)
             }

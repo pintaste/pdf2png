@@ -2,6 +2,9 @@ import Foundation
 import PDFKit
 import AppKit
 import CoreGraphics
+import os.log
+
+private let logger = Logger(subsystem: "com.pdf2png.app", category: "PDFConverter")
 
 /// PDF 到 PNG 转换器
 actor PDFConverter {
@@ -107,7 +110,12 @@ actor PDFConverter {
         let actualOutputDir: URL
         if pageCount > 1 {
             actualOutputDir = outputDir.appendingPathComponent(baseName)
-            try? FileManager.default.createDirectory(at: actualOutputDir, withIntermediateDirectories: true)
+            do {
+                try FileManager.default.createDirectory(at: actualOutputDir, withIntermediateDirectories: true)
+            } catch {
+                // Existing directory is fine; a genuine failure will surface as a write error below
+                logger.warning("createDirectory failed: \(error.localizedDescription)")
+            }
         } else {
             actualOutputDir = outputDir
         }
@@ -136,44 +144,36 @@ actor PDFConverter {
             // --- END UNIFIED LOGIC ---
         }
 
-        // 多页文件：每页独立计算最优 DPI（严格模式）
+        // 多页文件：每页独立计算最优 DPI，限制最大并发数控制内存峰值
         var results: [(index: Int, url: URL, size: Int, dpi: Int)] = []
         var completedCount = 0
 
         try await withThrowingTaskGroup(of: (Int, URL, Int, Int).self) { group in
-            for pageIndex in 0..<pageCount {
-                guard !isCancelled else { break }
+            var nextPageIndex = 0
 
+            // 预填初始批次
+            while nextPageIndex < min(pageCount, Self.maxConcurrentPages) && !isCancelled {
+                let pageIdx = nextPageIndex
+                nextPageIndex += 1
                 group.addTask { [self] in
-                    guard let page = pdfDocument.page(at: pageIndex) else {
-                        throw ConversionError.renderFailed(String(localized: "error.cannotGetPage", bundle: .module).replacingOccurrences(of: "%d", with: "\(pageIndex + 1)"))
-                    }
-
-                    let outputURL = actualOutputDir.appendingPathComponent("page\(pageIndex + 1).png")
-
-                    // 每页独立计算最优 DPI（使用严格模式确保不超标）
-                    let (data, dpi) = try await self.convertPage(page: page, settings: settings)
-                    try data.write(to: outputURL)
-
-                    // 验证每页输出文件大小（质量优先模式跳过）
-                    if !settings.qualityFirst {
-                        try self.verifyOutputFileSize(url: outputURL, settings: settings, usedDPI: dpi)
-                    }
-
-                    return (pageIndex, outputURL, data.count, dpi)
+                    try await self.convertPageAtIndex(pageIdx, pdfDocument: pdfDocument, outputDir: actualOutputDir, settings: settings)
                 }
             }
 
-            for try await result in group {
-                guard !isCancelled else {
-                    throw ConversionError.cancelled
-                }
-                results.append(result)
-
-                // 更新进度
+            for try await (pageIndex, url, size, dpi) in group {
+                guard !isCancelled else { throw ConversionError.cancelled }
+                results.append((index: pageIndex, url: url, size: size, dpi: dpi))
                 completedCount += 1
-                let progressValue = Double(completedCount) / Double(pageCount)
-                progress(ProgressInfo(currentPage: completedCount, totalPages: pageCount, progress: progressValue))
+                progress(ProgressInfo(currentPage: completedCount, totalPages: pageCount, progress: Double(completedCount) / Double(pageCount)))
+
+                // 释放出一个槽位后立即添加下一页
+                if nextPageIndex < pageCount && !isCancelled {
+                    let pageIdx = nextPageIndex
+                    nextPageIndex += 1
+                    group.addTask { [self] in
+                        try await self.convertPageAtIndex(pageIdx, pdfDocument: pdfDocument, outputDir: actualOutputDir, settings: settings)
+                    }
+                }
             }
         }
 
@@ -210,6 +210,27 @@ actor PDFConverter {
 
     // MARK: - Private Methods
 
+    /// 转换单个页面并写入磁盘（供 TaskGroup 复用）
+    private func convertPageAtIndex(
+        _ pageIndex: Int,
+        pdfDocument: PDFDocument,
+        outputDir: URL,
+        settings: ConversionSettings
+    ) async throws -> (Int, URL, Int, Int) {
+        guard let page = pdfDocument.page(at: pageIndex) else {
+            throw ConversionError.renderFailed(
+                String(localized: "error.cannotGetPage", bundle: .module)
+                    .replacingOccurrences(of: "%d", with: "\(pageIndex + 1)"))
+        }
+        let outputURL = outputDir.appendingPathComponent("page\(pageIndex + 1).png")
+        let (data, dpi) = try await convertPage(page: page, settings: settings)
+        try data.write(to: outputURL)
+        if !settings.qualityFirst {
+            try verifyOutputFileSize(url: outputURL, settings: settings, usedDPI: dpi)
+        }
+        return (pageIndex, outputURL, data.count, dpi)
+    }
+
     /// 验证输出文件大小（保存后的最终检查）
     private nonisolated func verifyOutputFileSize(
         url: URL,
@@ -229,7 +250,11 @@ actor PDFConverter {
         // 严格验证：文件大小必须 <= 限制
         if Int64(fileSize) > maxSizeBytes {
             // 删除超标文件
-            try? FileManager.default.removeItem(at: url)
+            do {
+                try FileManager.default.removeItem(at: url)
+            } catch {
+                logger.warning("Failed to remove oversized file \(url.lastPathComponent): \(error.localizedDescription)")
+            }
 
             // 抛出错误
             throw ConversionError.sizeLimitExceeded(
@@ -265,62 +290,96 @@ actor PDFConverter {
         return (data, dpi)
     }
 
-    // MARK: - Size-Limit Mode (Strict Binary Search)
+    // MARK: - Size-Limit Mode (Projection + Binary Search)
 
-    /// 大小限制模式：严格二分查找算法
-    /// 确保结果严格小于 maxSizeMB，否则抛出错误
+    /// 大小限制模式：投影估算 + 二分查找
+    ///
+    /// 利用文件大小约正比于 DPI² 的关系，先用一次投影渲染把搜索范围收窄到
+    /// sqrt(overRatio) 倍，再对剩余范围做二分；典型场景可将渲染次数从 ~12 次
+    /// 降至 ~3-5 次。
     private nonisolated func renderWithSizeLimit(
         page: PDFPage,
         settings: ConversionSettings
     ) throws -> (Data, Int) {
         let multiplier = settings.sizeCalculationMode == .safe ? 1_000_000.0 : 1_048_576.0
         let maxSizeBytes = Int(settings.maxSizeMB * multiplier)
-
-        // 安全系数：留 3% 缓冲避免 PNG 压缩波动导致超标
+        // 3% 缓冲避免 PNG 压缩波动导致超标
         let safeSizeBytes = Int(Double(maxSizeBytes) * 0.97)
 
-        // Step 1: 快速检查最高 DPI
+        // Step 1: 先以 maxDPI 尝试（最优质量优先，也是投影基准）
         let maxData = try renderPage(page: page, dpi: settings.maxDPI)
         if maxData.count < safeSizeBytes {
             return (maxData, settings.maxDPI)
         }
 
-        // Step 2: 检查用户设置的最小 DPI 是否可行
-        // ✅ 修复：严格遵守用户的 minDPI 设置，不再降到 absoluteMinDPI
-        let minData = try renderPage(page: page, dpi: settings.minDPI)
-        if minData.count >= safeSizeBytes {
-            // 用户的 minDPI 无法满足大小限制，抛出清晰的错误提示
-            let currentSizeMB = Double(minData.count) / multiplier
-            throw ConversionError.minDPIConflict(
-                minDPI: settings.minDPI,
-                minDPISizeMB: currentSizeMB,
-                limitMB: settings.maxSizeMB,
-                suggestion: "请选择：提高文件大小限制到 \(Int(ceil(currentSizeMB))) MB 或 降低最小 DPI"
-            )
-        }
+        // Step 2: 投影估算最优 DPI
+        // size ∝ DPI²，故 targetDPI ≈ maxDPI × sqrt(target/current)
+        // 0.95 安全系数确保投影略低于真实最优值
+        let ratio = Double(safeSizeBytes) / Double(maxData.count)
+        let projectedDPI = max(
+            settings.minDPI,
+            min(settings.maxDPI - 1, Int(Double(settings.maxDPI) * sqrt(ratio) * 0.95))
+        )
 
-        // Step 3: 精确二分查找（精度 1 DPI，使用安全阈值）
         var low = settings.minDPI
         var high = settings.maxDPI
-        var bestData = minData
-        var bestDPI = settings.minDPI
+        var bestData: Data
+        var bestDPI: Int
 
+        if projectedDPI > settings.minDPI {
+            // 在投影 DPI 处渲染，以此缩小二分范围
+            let projData = try renderPage(page: page, dpi: projectedDPI)
+            if projData.count < safeSizeBytes {
+                // 投影可行：搜索范围收窄到 [projectedDPI, maxDPI]
+                low = projectedDPI
+                bestData = projData
+                bestDPI = projectedDPI
+            } else {
+                // 投影仍超标：搜索范围收窄到 [minDPI, projectedDPI]
+                high = projectedDPI
+                let minData = try renderPage(page: page, dpi: settings.minDPI)
+                if minData.count >= safeSizeBytes {
+                    let currentSizeMB = Double(minData.count) / multiplier
+                    throw ConversionError.minDPIConflict(
+                        minDPI: settings.minDPI,
+                        minDPISizeMB: currentSizeMB,
+                        limitMB: settings.maxSizeMB,
+                        suggestion: "请选择：提高文件大小限制到 \(Int(ceil(currentSizeMB))) MB 或 降低最小 DPI"
+                    )
+                }
+                bestData = minData
+                bestDPI = settings.minDPI
+            }
+        } else {
+            // 投影已到最低档，直接验证 minDPI 可行性
+            let minData = try renderPage(page: page, dpi: settings.minDPI)
+            if minData.count >= safeSizeBytes {
+                let currentSizeMB = Double(minData.count) / multiplier
+                throw ConversionError.minDPIConflict(
+                    minDPI: settings.minDPI,
+                    minDPISizeMB: currentSizeMB,
+                    limitMB: settings.maxSizeMB,
+                    suggestion: "请选择：提高文件大小限制到 \(Int(ceil(currentSizeMB))) MB 或 降低最小 DPI"
+                )
+            }
+            bestData = minData
+            bestDPI = settings.minDPI
+        }
+
+        // Step 3: 在已收窄的范围内二分精调
         while high - low > 1 {
             let midDPI = (low + high) / 2
             let midData = try renderPage(page: page, dpi: midDPI)
-
             if midData.count < safeSizeBytes {
-                // 可行，尝试更高 DPI
                 low = midDPI
                 bestData = midData
                 bestDPI = midDPI
             } else {
-                // 超标或接近临界值，降低 DPI
                 high = midDPI
             }
         }
 
-        // Step 4: 最终强制验证（确保绝对不超过真实限制）
+        // Step 4: 最终强制验证
         if bestData.count > maxSizeBytes {
             let currentSizeMB = Double(bestData.count) / multiplier
             throw ConversionError.sizeLimitExceeded(

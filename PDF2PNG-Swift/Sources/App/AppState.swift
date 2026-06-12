@@ -22,6 +22,7 @@ class AppState: ObservableObject {
     /// 转换设置（从 UserDefaults 加载）
     @Published var settings: ConversionSettings = ConversionSettings.load() {
         didSet {
+            settings.validate()
             settings.save()
         }
     }
@@ -325,6 +326,28 @@ class AppState: ObservableObject {
     func showError(_ message: String) {
         errorMessage = message
         showError = true
+    }
+
+    /// 在 Finder 中显示上次的输出目录
+    func showOutputInFinder() {
+        guard let dir = lastOutputDirectory ?? settings.outputDirectory else { return }
+        NSWorkspace.shared.open(dir)
+    }
+
+    /// 转换完成的任务数
+    var completedTaskCount: Int {
+        tasks.filter { task in
+            if case .completed = task.status { return true }
+            return false
+        }.count
+    }
+
+    /// 转换失败的任务数
+    var failedTaskCount: Int {
+        tasks.filter { task in
+            if case .failed = task.status { return true }
+            return false
+        }.count
     }
 
     // MARK: - Private Methods

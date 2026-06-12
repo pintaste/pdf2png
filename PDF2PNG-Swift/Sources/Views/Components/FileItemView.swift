@@ -11,6 +11,7 @@ struct FileItemView: View {
             Image(systemName: "doc.fill")
                 .font(.system(size: 20))
                 .foregroundColor(ThemeColors.fileIcon)
+                .accessibilityHidden(true)
 
             // 文件信息
             VStack(alignment: .leading, spacing: 2) {
@@ -46,6 +47,8 @@ struct FileItemView: View {
                 }
                 .buttonStyle(.plain)
                 .frame(width: 20, height: 20)
+                .accessibilityLabel("Remove file")
+                .accessibilityHint("Removes \(url.lastPathComponent) from the list")
             }
         }
         .padding(.horizontal, 10)
@@ -56,6 +59,17 @@ struct FileItemView: View {
             RoundedRectangle(cornerRadius: 6)
                 .stroke(ThemeColors.borderNormal, lineWidth: 1)
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityDescription)
+    }
+
+    private var accessibilityDescription: String {
+        let name = url.lastPathComponent
+        if let status = status {
+            return "\(name), \(status.description)"
+        } else {
+            return "\(name), \(fileSizeString)"
+        }
     }
 
     private var fileSizeString: String {

@@ -144,3 +144,9 @@
 "settings.size.safe" = "Safe";
 "settings.size.aggressive" = "Aggressive";
 "settings.size.warning" = "May be rejected by some websites";
+
+/* Completion Summary */
+"completion.fileSaved" = "%d file saved";
+"completion.filesSaved" = "%d files saved";
+"completion.failed" = "%d failed";
+"button.showInFinder" = "Show in Finder";
